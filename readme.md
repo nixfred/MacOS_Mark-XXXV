@@ -1,6 +1,6 @@
 # 🤖 MARK XXXV
 
-**Watch The Detailed Video To Set-up This Model**: https://www.youtube.com/watch?v=-YjbWjv1tJg
+**Watch The Detailed Video To Set-up This Model**: https://www.youtube.com/watch?v=BhOsnGC_sAA
 
 ### Next-Generation Personal AI Assistant — By FatihMakes
 
