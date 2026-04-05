@@ -1,13 +1,3 @@
-"""
-actions/screen_processor.py — Gemini Live API — IMAGE-ONLY SESSION v8
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-v8 Changes:
-  - Auto camera detection on first use — saves to config
-  - No hardcoded camera index
-  - mic_loop removed (no double response issue)
-  - Image-only session, no conflict with main.py
-"""
-
 import asyncio
 import base64
 import io
@@ -20,7 +10,8 @@ import threading
 import cv2
 import mss
 import mss.tools
-import pyaudio
+import sounddevice as sd
+import numpy as np
 from pathlib import Path
 
 try:
@@ -41,7 +32,6 @@ BASE_DIR        = get_base_dir()
 API_CONFIG_PATH = BASE_DIR / "config" / "api_keys.json"
 
 LIVE_MODEL          = "models/gemini-2.5-flash-native-audio-preview-12-2025"
-FORMAT              = pyaudio.paInt16
 CHANNELS            = 1
 RECEIVE_SAMPLE_RATE = 24000
 CHUNK_SIZE          = 1024
@@ -74,11 +64,6 @@ def _get_api_key() -> str:
 
 
 def _get_camera_index() -> int:
-    """
-    Reads camera index from config.
-    If not set, auto-detects the best camera and saves it for future use.
-    Runs only once — after that, config value is used directly.
-    """
     try:
         with open(API_CONFIG_PATH, "r", encoding="utf-8") as f:
             cfg = json.load(f)
@@ -95,19 +80,16 @@ def _get_camera_index() -> int:
         if not cap.isOpened():
             cap.release()
             continue
-
         for _ in range(5):
             cap.read()
-
         ret, frame = cap.read()
         cap.release()
-
         if ret and frame is not None and frame.mean() > 5:
             best_index = idx
             print(f"[Camera] ✅ Camera found at index {idx} — saving to config.")
             break
         else:
-            print(f"[Camera] ⚠️  Index {idx}: no valid frame (black or empty).")
+            print(f"[Camera] ⚠️  Index {idx}: no valid frame.")
 
     try:
         cfg = {}
@@ -146,16 +128,12 @@ def _capture_camera() -> bytes:
     cap = cv2.VideoCapture(camera_index, cv2.CAP_DSHOW)
     if not cap.isOpened():
         raise RuntimeError(f"Camera could not be opened: index {camera_index}")
-
     for _ in range(10):
         cap.read()
-
     ret, frame = cap.read()
     cap.release()
-
     if not ret or frame is None:
         raise RuntimeError("Could not capture camera frame.")
-
     if _PIL_OK:
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         img = PIL.Image.fromarray(rgb)
@@ -163,17 +141,11 @@ def _capture_camera() -> bytes:
         buf = io.BytesIO()
         img.save(buf, format="JPEG", quality=JPEG_Q, optimize=False)
         return buf.getvalue()
-
     _, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, JPEG_Q])
     return buf.tobytes()
 
 
 class _LiveSession:
-    """
-    Image-only analysis session.
-    No microphone — no conflict with main.py session.
-    Sends image + question, plays audio response.
-    """
 
     def __init__(self):
         self._loop:      asyncio.AbstractEventLoop | None = None
@@ -183,7 +155,6 @@ class _LiveSession:
         self._audio_in:  asyncio.Queue | None             = None
         self._ready:     threading.Event                  = threading.Event()
         self._player                                      = None
-        self._pya                                         = pyaudio.PyAudio()
         self._send_lock: asyncio.Lock | None              = None
 
     def start(self, player=None):
@@ -234,12 +205,10 @@ class _LiveSession:
                     self._session = session
                     self._ready.set()
                     print("[ScreenProcess] ✅ Vision session connected")
-
                     async with asyncio.TaskGroup() as tg:
                         tg.create_task(self._send_loop())
                         tg.create_task(self._recv_loop())
                         tg.create_task(self._play_loop())
-
             except Exception as e:
                 print(f"[ScreenProcess] ⚠️ Disconnected: {e} — reconnecting...")
                 self._session = None
@@ -247,10 +216,7 @@ class _LiveSession:
                 await asyncio.sleep(2)
                 self._ready.set()
 
-    # ── Send loop ──
-
     async def _send_loop(self):
-        """Sends (image_bytes, mime_type, user_text) tuples from queue."""
         while True:
             item = await self._out_queue.get()
             if self._session:
@@ -274,19 +240,15 @@ class _LiveSession:
         transcript_buf: list[str] = []
         try:
             async for response in self._session.receive():
-
                 if response.data:
                     await self._audio_in.put(response.data)
-
                 sc = response.server_content
                 if not sc:
                     continue
-
                 if sc.output_transcription and sc.output_transcription.text:
                     chunk = sc.output_transcription.text.strip()
                     if chunk:
                         transcript_buf.append(chunk)
-
                 if sc.turn_complete:
                     if transcript_buf and self._player:
                         full = re.sub(r'\s+', ' ', " ".join(transcript_buf)).strip()
@@ -294,27 +256,31 @@ class _LiveSession:
                             self._player.write_log(f"Jarvis: {full}")
                             print(f"[ScreenProcess] 💬 {full}")
                     transcript_buf = []
-
         except Exception as e:
             print(f"[ScreenProcess] ⚠️ Recv error: {e}")
             transcript_buf = []
             await asyncio.sleep(0.3)
 
     async def _play_loop(self):
-        stream = await asyncio.to_thread(
-            self._pya.open,
-            format=FORMAT, channels=CHANNELS,
-            rate=RECEIVE_SAMPLE_RATE, output=True,
+        stream = sd.RawOutputStream(
+            samplerate=RECEIVE_SAMPLE_RATE,
+            channels=CHANNELS,
+            dtype="int16",
+            blocksize=CHUNK_SIZE,
         )
+        stream.start()
         try:
             while True:
                 chunk = await self._audio_in.get()
                 await asyncio.to_thread(stream.write, chunk)
+        except Exception as e:
+            print(f"[ScreenProcess] ❌ Play error: {e}")
+            raise
         finally:
+            stream.stop()
             stream.close()
 
     def analyze(self, image_bytes: bytes, mime_type: str, user_text: str):
-        """Called from main thread — puts image into async queue."""
         if not self._loop:
             return
         asyncio.run_coroutine_threadsafe(
@@ -324,6 +290,7 @@ class _LiveSession:
 
     def is_ready(self) -> bool:
         return self._session is not None
+
 
 _live       = _LiveSession()
 _started    = False
@@ -338,6 +305,7 @@ def _ensure_started(player=None):
             _started = True
         elif player is not None:
             _live._player = player
+
 
 def screen_process(
     parameters:     dict,
@@ -376,11 +344,6 @@ def screen_process(
 
 
 def warmup_session(player=None):
-    """
-    Optional: pre-warm the session.
-    Do NOT call from main.py — causes double session issue.
-    Only use when testing screen_processor.py standalone.
-    """
     try:
         _ensure_started(player=player)
     except Exception as e:
