@@ -295,23 +295,44 @@ def send_message(
     """
     Called from main.py.
 
+    Two-step flow:
+      1. First call (confirmed=false): validates contact, returns match for confirmation
+      2. Second call (confirmed=true): actually sends the message
+
     parameters:
         receiver     : Contact name to send to
         message_text : The message content
         platform     : whatsapp | instagram | telegram | imessage | <any app name>
-                       Default: whatsapp
+        confirmed    : Must be true to actually send. Default: false
     """
     params       = parameters or {}
     receiver     = params.get("receiver", "").strip()
     message_text = params.get("message_text", "").strip()
     platform     = params.get("platform", "whatsapp").strip().lower()
+    confirmed    = str(params.get("confirmed", "false")).lower() == "true"
 
     if not receiver:
         return "Please specify who to send the message to, sir."
     if not message_text:
         return "Please specify what message to send, sir."
 
-    print(f"[SendMessage] {platform} -> {receiver}: {message_text[:40]}")
+    # Step 1: Validate contact and ask for confirmation
+    if not confirmed:
+        contact = _find_contact(receiver)
+        if contact:
+            return (
+                f"I found {contact['name']} in your contacts"
+                f"{' (' + contact['phone'] + ')' if contact['phone'] else ''}. "
+                f"Should I send the message to {contact['name']}? Say yes to confirm or no to cancel."
+            )
+        else:
+            return (
+                f"I could not find '{receiver}' in your contacts, sir. "
+                f"Please check the name and try again, or say the exact contact name."
+            )
+
+    # Step 2: Confirmed — actually send
+    print(f"[SendMessage] CONFIRMED: {platform} -> {receiver}: {message_text[:40]}")
     if player:
         player.write_log(f"[msg] Sending to {receiver} via {platform}...")
 

@@ -139,13 +139,19 @@ TOOL_DECLARATIONS = [
     },
     {
         "name": "send_message",
-        "description": "Sends a text message via WhatsApp, Telegram, iMessage, or other messaging platform.",
+        "description": (
+            "Sends a text message via WhatsApp, Telegram, iMessage, or other messaging platform. "
+            "IMPORTANT: First call WITHOUT confirmed to validate the contact. The tool will return "
+            "the matched contact name. Ask the user to confirm. Then call AGAIN with confirmed=true "
+            "to actually send. Never send without confirmation."
+        ),
         "parameters": {
             "type": "OBJECT",
             "properties": {
                 "receiver":     {"type": "STRING", "description": "Recipient contact name"},
                 "message_text": {"type": "STRING", "description": "The message to send"},
-                "platform":     {"type": "STRING", "description": "Platform: WhatsApp, Telegram, iMessage, etc. Default: whatsapp"}
+                "platform":     {"type": "STRING", "description": "Platform: WhatsApp, Telegram, iMessage, etc. Default: whatsapp"},
+                "confirmed":    {"type": "BOOLEAN", "description": "Set to true ONLY after user confirms the contact match. Default: false"}
             },
             "required": ["receiver", "message_text", "platform"]
         }
