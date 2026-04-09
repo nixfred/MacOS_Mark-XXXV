@@ -7,7 +7,7 @@ from datetime import datetime
 import send2trash
 
 def _get_desktop() -> Path:
-    """Returns desktop path — works on Windows, Mac, Linux."""
+    """Returns desktop path."""
     return Path.home() / "Desktop"
 
 
@@ -98,7 +98,7 @@ def create_folder(path: str) -> str:
 def delete_file(path: str, confirm: bool = True) -> str:
     """
     Deletes a file or folder.
-    Moves to Recycle Bin on Windows if possible, otherwise permanent delete.
+    Moves to Trash on macOS if possible, otherwise permanent delete.
     """
     try:
         target = Path(path).expanduser()

@@ -1,11 +1,8 @@
 """
-memory_manager.py — MARK XXV Hafıza Sistemi
-============================================
-Düzeltmeler:
-  - _MEMORY_EVERY_N_TURNS: 3 → 1 (her turda kontrol)
-  - Stage 1 YES/NO check daha geniş kriterlere sahip
-  - Extraction prompt daha kapsamlı ve agresif
-  - Projeleri, favori şeyleri, arkadaşları daha iyi yakalar
+memory_manager.py — MARK XXXV macOS Memory System
+==================================================
+Persistent memory: learns user preferences, relationships, projects.
+Checks every turn, extracts personal facts via Gemini.
 """
 
 import json
@@ -177,7 +174,7 @@ def extract_memory(user_text: str, jarvis_text: str, api_key: str) -> dict:
             f"Format:\n"
             f'{{"identity":{{"name":{{"value":"Ali"}}}},\n'
             f' "preferences":{{"favorite_color":{{"value":"blue"}}, "hobby":{{"value":"gaming"}}}},\n'
-            f' "projects":{{"mark_xxv":{{"value":"JARVIS-like AI assistant on Windows"}}}},\n'
+            f' "projects":{{"mark_xxxv":{{"value":"JARVIS-like AI assistant on macOS"}}}},\n'
             f' "relationships":{{"friend_yusuf":{{"value":"close friend"}}}},\n'
             f' "wishes":{{"buy_guitar":{{"value":"wants an acoustic guitar"}}}},\n'
             f' "notes":{{"works_at_night":{{"value":"usually active late at night"}}}}}}\n\n'

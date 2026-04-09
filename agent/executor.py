@@ -37,14 +37,9 @@ def _run_generated_code(description: str, speak: Callable | None = None) -> str:
     downloads = home / "Downloads"
     documents = home / "Documents"
 
+    # Desktop path is standard on macOS
     if not desktop.exists():
-        try:
-            import winreg
-            key     = winreg.OpenKey(winreg.HKEY_CURRENT_USER,
-                r"Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders")
-            desktop = Path(winreg.QueryValueEx(key, "Desktop")[0])
-        except Exception:
-            pass
+        desktop = home
 
     genai.configure(api_key=_get_api_key())
     model = genai.GenerativeModel(

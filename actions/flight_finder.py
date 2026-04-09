@@ -1,5 +1,5 @@
 # actions/flight_finder.py
-# MARK XXV — Flight Finder
+# MARK XXXV macOS — Flight Finder
 #
 # Searches for flights using Google Flights via browser_control.
 # Results are spoken by JARVIS. Optionally saved to Notepad or opened in browser.
@@ -13,7 +13,7 @@
 #   6. Speak top results
 #   7. Optionally save to Notepad or keep browser open
 #
-# Cross-platform: Windows, macOS, Linux
+# macOS native
 # No API key required — Google Flights is free to access
 
 import json
@@ -322,15 +322,7 @@ def _save_to_notepad(content: str, origin: str, destination: str) -> str:
     filepath.write_text(content, encoding="utf-8")
     print(f"[FlightFinder] 💾 Saved: {filepath}")
 
-    system  = platform.system()
-    open_fn = {
-        "Windows": lambda p: subprocess.Popen(["notepad.exe", str(p)]),
-        "Darwin":  lambda p: subprocess.Popen(["open", "-t", str(p)]),
-        "Linux":   lambda p: subprocess.Popen(["xdg-open", str(p)]),
-    }
-    opener = open_fn.get(system)
-    if opener:
-        opener(filepath)
+    subprocess.Popen(["open", "-t", str(filepath)])
 
     return str(filepath)
 

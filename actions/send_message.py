@@ -205,16 +205,17 @@ def _find_contact(name: str) -> dict | None:
 def _send_imessage(receiver: str, message: str) -> str:
     """Sends an iMessage/SMS via macOS Messages app. Validates contact first."""
     try:
+        print(f"[iMessage] START: receiver='{receiver}' message='{message[:40]}'")
+
         # Look up the contact
         contact = _find_contact(receiver)
 
         if contact:
             actual_name = contact["name"]
-            # Use phone number if available (most reliable for iMessage)
             target = contact["phone"] or contact["email"] or actual_name
-            print(f"[SendMessage] iMessage to: {actual_name} ({target})")
+            print(f"[iMessage] Contact found: {actual_name} -> target: {target}")
         else:
-            print(f"[SendMessage] No contact found for '{receiver}', using name as-is")
+            print(f"[iMessage] No contact found for '{receiver}', using name as-is")
             actual_name = receiver
             target = receiver
 
@@ -230,36 +231,59 @@ tell application "Messages"
     send "{safe_msg}" to targetBuddy
 end tell
 '''
+            print(f"[iMessage] AppleScript: sending to '{safe_target}'")
             result = subprocess.run(
                 ["osascript", "-e", script],
-                capture_output=True, text=True, timeout=10
+                capture_output=True, text=True, timeout=15
             )
+            print(f"[iMessage] AppleScript returncode={result.returncode}")
+            print(f"[iMessage] AppleScript stdout='{result.stdout.strip()}'")
+            print(f"[iMessage] AppleScript stderr='{result.stderr.strip()}'")
 
             if result.returncode == 0:
+                print(f"[iMessage] SUCCESS via AppleScript")
                 return f"iMessage sent to {actual_name}."
+            else:
+                print(f"[iMessage] AppleScript FAILED, falling back to Messages UI")
 
         # Fallback: open Messages app, use contact name for search
+        print(f"[iMessage] FALLBACK: Opening Messages app for '{actual_name}'")
         if not _open_app("Messages"):
+            print(f"[iMessage] FAILED to open Messages app")
             return "Could not open Messages."
+
         time.sleep(1.5)
+        print(f"[iMessage] Cmd+N new message")
         pyautogui.hotkey("command", "n")
         time.sleep(0.5)
-        # Type the validated contact name
+
+        print(f"[iMessage] Typing contact name: '{actual_name}'")
         pyautogui.write(actual_name, interval=0.04)
         time.sleep(1.0)
-        # Select first suggestion
+
+        print(f"[iMessage] Selecting first suggestion (down + enter)")
         pyautogui.press("down")
         time.sleep(0.3)
         pyautogui.press("enter")
         time.sleep(0.5)
-        # Tab to message field and type
+
+        print(f"[iMessage] Tab to message field")
         pyautogui.press("tab")
         time.sleep(0.3)
+
+        print(f"[iMessage] Typing message: '{message[:40]}'")
         pyautogui.write(message, interval=0.03)
+
+        print(f"[iMessage] Pressing enter to send")
         pyautogui.press("enter")
+
+        print(f"[iMessage] SUCCESS via Messages UI")
         return f"Message sent to {actual_name} via Messages."
 
     except Exception as e:
+        print(f"[iMessage] ERROR: {e}")
+        import traceback
+        traceback.print_exc()
         return f"iMessage error: {e}"
 
 
@@ -331,27 +355,36 @@ def send_message(
                 f"Please check the name and try again, or say the exact contact name."
             )
 
-    # Step 2: Confirmed — actually send
-    print(f"[SendMessage] CONFIRMED: {platform} -> {receiver}: {message_text[:40]}")
+    # Step 2: Confirmed — re-validate contact and send with real name/phone
+    contact = _find_contact(receiver)
+    if contact:
+        validated_name = contact["name"]
+        print(f"[SendMessage] CONFIRMED: {platform} -> {validated_name} (from '{receiver}')")
+        print(f"[SendMessage] Phone: {contact.get('phone', 'N/A')} | Email: {contact.get('email', 'N/A')}")
+        print(f"[SendMessage] Message: {message_text[:60]}")
+    else:
+        validated_name = receiver
+        print(f"[SendMessage] CONFIRMED but no contact match for '{receiver}' — using as-is")
+
     if player:
-        player.write_log(f"[msg] Sending to {receiver} via {platform}...")
+        player.write_log(f"[msg] Sending to {validated_name} via {platform}...")
 
     if "whatsapp" in platform or "wp" in platform or "wapp" in platform:
-        result = _send_whatsapp(receiver, message_text)
+        result = _send_whatsapp(validated_name, message_text)
 
     elif "instagram" in platform or "ig" in platform or "insta" in platform:
-        result = _send_instagram(receiver, message_text)
+        result = _send_instagram(validated_name, message_text)
 
     elif "telegram" in platform or "tg" in platform:
-        result = _send_telegram(receiver, message_text)
+        result = _send_telegram(validated_name, message_text)
 
     elif "imessage" in platform or "message" in platform or "sms" in platform or "text" in platform:
-        result = _send_imessage(receiver, message_text)
+        result = _send_imessage(validated_name, message_text)
 
     else:
-        result = _send_generic(platform, receiver, message_text)
+        result = _send_generic(platform, validated_name, message_text)
 
-    print(f"[SendMessage] {result}")
+    print(f"[SendMessage] RESULT: {result}")
     if player:
         player.write_log(f"[msg] {result}")
 

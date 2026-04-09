@@ -56,7 +56,7 @@ def _resolve_save_path(output_path: str, language: str) -> Path:
         "typescript": ".ts", "ts": ".ts",
         "html": ".html", "css": ".css",
         "java": ".java", "cpp": ".cpp", "c": ".c",
-        "bash": ".sh", "shell": ".sh", "powershell": ".ps1",
+        "bash": ".sh", "shell": ".sh", "zsh": ".sh",
         "sql": ".sql", "json": ".json", "rust": ".rs", "go": ".go",
     }
     if output_path:
@@ -208,7 +208,7 @@ def _run_file(path: Path, args: list, timeout: int) -> str:
         ".js":  ["node"],
         ".ts":  ["ts-node"],
         ".sh":  ["bash"],
-        ".ps1": ["powershell", "-File"],
+        ".zsh": ["zsh"],
         ".rb":  ["ruby"],
         ".php": ["php"],
     }
