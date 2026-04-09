@@ -510,7 +510,7 @@ class JarvisUI:
         c.create_text(W - 16, H - 14, fill=C_DIM, font=("Courier", 8),
                       text="[F4] MUTE", anchor="e")
         c.create_text(W // 2, H - 14, fill=C_DIM, font=("Courier", 8),
-                      text="FatihMakes Industries  ·  CLASSIFIED  ·  MARK XXXV")
+                      text="NIXFRED  ·  CLASSIFIED  ·  MARK XXXV macOS")
 
     # ── Log ───────────────────────────────────────────────────────────────────
 
