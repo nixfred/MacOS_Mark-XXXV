@@ -362,8 +362,6 @@ TOOL_DECLARATIONS = [
         }
     },
     {
-    },
-    {
         "name": "flight_finder",
         "description": "Searches Google Flights and speaks the best options.",
         "parameters": {
