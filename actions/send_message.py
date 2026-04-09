@@ -123,42 +123,141 @@ def _send_telegram(receiver: str, message: str) -> str:
         return f"Telegram error: {e}"
 
 
-def _send_imessage(receiver: str, message: str) -> str:
-    """Sends an iMessage/SMS via macOS Messages app using AppleScript."""
-    try:
-        safe_msg = message.replace('"', '\\"')
-        safe_rcv = receiver.replace('"', '\\"')
+def _find_contact(name: str) -> dict | None:
+    """
+    Search macOS Contacts database directly via sqlite3.
+    Returns {"name": "Full Name", "phone": "+1...", "email": "..."} or None.
+    Fuzzy matches — "crystal nicks" finds "Crystal Nix".
+    """
+    import sqlite3
+    from pathlib import Path
 
-        script = f'''
+    name_parts = name.lower().strip().split()
+    if not name_parts:
+        return None
+
+    # Find all AddressBook databases
+    ab_dir = Path.home() / "Library" / "Application Support" / "AddressBook"
+    db_paths = list(ab_dir.glob("Sources/*/AddressBook-v22.abcddb"))
+    db_paths.append(ab_dir / "AddressBook-v22.abcddb")
+
+    best_match = None
+    best_score = 0
+
+    for db_path in db_paths:
+        if not db_path.exists():
+            continue
+        try:
+            conn = sqlite3.connect(str(db_path))
+            conn.row_factory = sqlite3.Row
+
+            # Search by first name part (most distinctive)
+            first = name_parts[0]
+            rows = conn.execute("""
+                SELECT r.ZFIRSTNAME, r.ZLASTNAME, r.Z_PK,
+                       (SELECT p.ZFULLNUMBER FROM ZABCDPHONENUMBER p
+                        WHERE p.ZOWNER = r.Z_PK LIMIT 1) as phone,
+                       (SELECT e.ZADDRESS FROM ZABCDEMAILADDRESS e
+                        WHERE e.ZOWNER = r.Z_PK LIMIT 1) as email
+                FROM ZABCDRECORD r
+                WHERE LOWER(r.ZFIRSTNAME) LIKE ?
+                   OR LOWER(r.ZLASTNAME) LIKE ?
+            """, (f"%{first}%", f"%{first}%")).fetchall()
+
+            for row in rows:
+                first_name = row["ZFIRSTNAME"] or ""
+                last_name = row["ZLASTNAME"] or ""
+                full_name = f"{first_name} {last_name}".strip()
+                fn_lower = full_name.lower()
+                fn_parts = set(fn_lower.split())
+
+                # Score the match
+                if fn_lower == " ".join(name_parts):
+                    score = 100  # Exact match
+                elif all(any(np in fp or fp in np for fp in fn_parts) for np in name_parts):
+                    score = 90  # All parts fuzzy match
+                else:
+                    overlap = sum(1 for np in name_parts
+                                  if any(np in fp or fp in np for fp in fn_parts))
+                    score = overlap * 40
+
+                if score > best_score:
+                    best_score = score
+                    best_match = {
+                        "name": full_name,
+                        "phone": (row["phone"] or "").strip(),
+                        "email": (row["email"] or "").strip(),
+                    }
+
+            conn.close()
+        except Exception as e:
+            print(f"[SendMessage] DB search error ({db_path.name}): {e}")
+            continue
+
+    if best_match and best_score >= 40:
+        print(f"[SendMessage] Contact: '{name}' -> '{best_match['name']}' (score: {best_score})")
+        return best_match
+
+    print(f"[SendMessage] No contact match for '{name}'")
+    return None
+
+
+def _send_imessage(receiver: str, message: str) -> str:
+    """Sends an iMessage/SMS via macOS Messages app. Validates contact first."""
+    try:
+        # Look up the contact
+        contact = _find_contact(receiver)
+
+        if contact:
+            actual_name = contact["name"]
+            # Use phone number if available (most reliable for iMessage)
+            target = contact["phone"] or contact["email"] or actual_name
+            print(f"[SendMessage] iMessage to: {actual_name} ({target})")
+        else:
+            print(f"[SendMessage] No contact found for '{receiver}', using name as-is")
+            actual_name = receiver
+            target = receiver
+
+        safe_msg = message.replace('"', '\\"')
+        safe_target = target.replace('"', '\\"')
+
+        # Try sending via phone number or email (direct AppleScript)
+        if contact and (contact["phone"] or contact["email"]):
+            script = f'''
 tell application "Messages"
     set targetService to 1st account whose service type = iMessage
-    set targetBuddy to participant "{safe_rcv}" of targetService
+    set targetBuddy to participant "{safe_target}" of targetService
     send "{safe_msg}" to targetBuddy
 end tell
 '''
-        result = subprocess.run(
-            ["osascript", "-e", script],
-            capture_output=True, text=True, timeout=10
-        )
+            result = subprocess.run(
+                ["osascript", "-e", script],
+                capture_output=True, text=True, timeout=10
+            )
 
-        if result.returncode == 0:
-            return f"iMessage sent to {receiver}."
-        else:
-            # Fallback: open Messages app and type
-            if not _open_app("Messages"):
-                return "Could not open Messages."
-            time.sleep(1.5)
-            pyautogui.hotkey("command", "n")
-            time.sleep(0.5)
-            pyautogui.write(receiver, interval=0.04)
-            time.sleep(0.5)
-            pyautogui.press("enter")
-            time.sleep(0.5)
-            pyautogui.press("tab")
-            time.sleep(0.3)
-            pyautogui.write(message, interval=0.03)
-            pyautogui.press("enter")
-            return f"Message sent to {receiver} via Messages."
+            if result.returncode == 0:
+                return f"iMessage sent to {actual_name}."
+
+        # Fallback: open Messages app, use contact name for search
+        if not _open_app("Messages"):
+            return "Could not open Messages."
+        time.sleep(1.5)
+        pyautogui.hotkey("command", "n")
+        time.sleep(0.5)
+        # Type the validated contact name
+        pyautogui.write(actual_name, interval=0.04)
+        time.sleep(1.0)
+        # Select first suggestion
+        pyautogui.press("down")
+        time.sleep(0.3)
+        pyautogui.press("enter")
+        time.sleep(0.5)
+        # Tab to message field and type
+        pyautogui.press("tab")
+        time.sleep(0.3)
+        pyautogui.write(message, interval=0.03)
+        pyautogui.press("enter")
+        return f"Message sent to {actual_name} via Messages."
 
     except Exception as e:
         return f"iMessage error: {e}"
