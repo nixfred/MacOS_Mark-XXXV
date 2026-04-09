@@ -40,6 +40,14 @@ BLOCKED_KEYWORDS = [
     "import os", "import subprocess",
     "__import__", "open(",
     "sys.exit", "quit()",
+    # Sandbox escape prevention
+    "getattr", "setattr", "delattr",
+    "__class__", "__bases__", "__subclasses__",
+    "__globals__", "__builtins__", "__code__",
+    "__import__", "compile(",
+    # Network / exfiltration
+    "requests", "urllib", "http",
+    "socket", "curl", "wget",
 ]
 
 
@@ -120,11 +128,11 @@ def _execute_generated_code(code: str) -> str:
             "enumerate": enumerate,
             "sorted": sorted,
             "isinstance": isinstance,
-            "hasattr": hasattr,
-            "getattr": getattr,
             "max": max,
             "min": min,
             "sum": sum,
+            "abs": abs,
+            "round": round,
         }
     }
 

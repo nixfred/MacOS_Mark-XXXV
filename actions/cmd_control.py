@@ -86,15 +86,27 @@ def _find_hardcoded(task: str) -> str | None:
 
 
 BLOCKED_PATTERNS = [
-    r"\brm\s+-rf\b",
-    r"\bsudo\s+rm\b",
-    r"\bdiskutil\s+erase\b",
-    r"\bmkfs\b",
-    r"\bkill\s+-9\b",
-    r"\bkillall\b",
+    # Destructive
+    r"\brm\s+-rf\b", r"\brm\s+-r\b", r"\bsudo\s+rm\b",
+    r"\bdiskutil\s+erase\b", r"\bmkfs\b",
+    r"\bkill\s+-9\b", r"\bkillall\b",
     r"\bshutdown\b", r"\breboot\b",
+    # Code execution / injection
     r"\beval\b", r"\b__import__\b",
-    r"\blaunchctl\s+remove\b",
+    r"\bpython[23]?\s+-c\b", r"\bperl\s+-e\b", r"\bruby\s+-e\b",
+    r"\bnode\s+-e\b", r"\bosascript\s+-e\b",
+    # Data exfiltration
+    r"\bcurl\b", r"\bwget\b", r"\bnc\s", r"\bncat\b", r"\bnetcat\b",
+    r"\bscp\b", r"\brsync\b", r"\bsftp\b",
+    r"\bopen\s+.*https?://\b",
+    # Privilege escalation
+    r"\bsudo\b", r"\bsu\s", r"\bchmod\s+[0-7]*[67][0-7]*\b",
+    r"\bchown\b", r"\bdscl\b",
+    # Persistence
+    r"\blaunchctl\b", r"\bcrontab\b",
+    # Sensitive file access
+    r"\.ssh/", r"\.aws/", r"\.gnupg/", r"Keychain",
+    r"/etc/passwd", r"/etc/shadow",
 ]
 _BLOCKED_RE = re.compile("|".join(BLOCKED_PATTERNS), re.IGNORECASE)
 

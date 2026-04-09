@@ -32,7 +32,37 @@ def _resolve_path(raw: str) -> Path:
     lower = raw.strip().lower()
     if lower in shortcuts:
         return shortcuts[lower]
-    return Path(raw).expanduser()
+    resolved = Path(raw).expanduser().resolve()
+    _check_path_safety(resolved)
+    return resolved
+
+
+# Paths that must never be accessed by the file controller
+_FORBIDDEN_PATHS = [
+    Path.home() / ".ssh",
+    Path.home() / ".aws",
+    Path.home() / ".gnupg",
+    Path.home() / ".claude",
+    Path.home() / "Library" / "Keychains",
+    Path.home() / "Library" / "Cookies",
+    Path.home() / "Library" / "Application Support" / "Google" / "Chrome" / "Default" / "Login Data",
+    Path("/etc"),
+    Path("/var"),
+    Path("/private/etc"),
+]
+
+
+def _check_path_safety(path: Path) -> None:
+    """Raises ValueError if the path is in a sensitive directory."""
+    resolved = path.resolve()
+    for forbidden in _FORBIDDEN_PATHS:
+        try:
+            resolved.relative_to(forbidden.resolve())
+            raise ValueError(f"Access denied: '{path}' is in a protected directory ({forbidden.name})")
+        except ValueError as e:
+            if "Access denied" in str(e):
+                raise
+            continue
 
 
 def _format_size(bytes_size: int) -> str:
