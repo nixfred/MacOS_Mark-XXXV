@@ -36,10 +36,20 @@ def _get_api_key() -> str:
         return json.load(f)["gemini_api_key"]
 
 
+class _LLMWrapper:
+    """Drop-in replacement for genai.GenerativeModel that routes through core.llm."""
+    def __init__(self, model_name: str = GEMINI_MODEL, system_instruction: str = None):
+        self._model = model_name
+        self._system = system_instruction
+
+    def generate_content(self, prompt):
+        from core.llm import generate
+        text = generate(str(prompt), system=self._system, gemini_model=self._model)
+        return type("Response", (), {"text": text})()
+
+
 def _get_gemini(model: str = GEMINI_MODEL):
-    import google.generativeai as genai
-    genai.configure(api_key=_get_api_key())
-    return genai.GenerativeModel(model)
+    return _LLMWrapper(model)
 
 
 def _clean_code(text: str) -> str:

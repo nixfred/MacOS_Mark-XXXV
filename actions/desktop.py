@@ -53,10 +53,7 @@ def _is_safe_code(code: str) -> tuple[bool, str]:
 
 def _ask_gemini_for_desktop_action(task: str) -> str:
     """Asks Gemini to generate safe Python/pyautogui code for macOS desktop tasks."""
-    import google.generativeai as genai
-
-    genai.configure(api_key=_get_api_key())
-    model = genai.GenerativeModel("gemini-2.5-flash")
+    from core.llm import generate as llm_generate
 
     desktop = str(_get_desktop())
 
@@ -84,8 +81,7 @@ Task: {task}
 Python code:"""
 
     try:
-        response = model.generate_content(prompt)
-        code = response.text.strip()
+        code = llm_generate(prompt, gemini_model="gemini-2.5-flash")
         if code.startswith("```"):
             lines = code.split("\n")
             code = "\n".join(lines[1:-1]).strip()

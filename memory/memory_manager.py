@@ -117,14 +117,11 @@ def should_extract_memory(user_text: str, jarvis_text: str, api_key: str) -> boo
     Öncekinden daha geniş kriterler — favori şeyler, projeler, arkadaşlar da dahil.
     """
     try:
-        import google.generativeai as genai
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-2.5-flash-lite")
+        from core.llm import generate
 
-        # Her iki tarafı da gönder — Jarvis'in söyledikleri de bilgi içerebilir
         combined = f"User: {user_text[:300]}\nJarvis: {jarvis_text[:200]}"
 
-        check = model.generate_content(
+        result = generate(
             f"Does this conversation contain ANY of the following?\n"
             f"- Personal facts (name, age, city, job, birthday, nationality)\n"
             f"- Preferences or favorites (food, color, music, sport, game, film, book, etc.)\n"
@@ -132,11 +129,12 @@ def should_extract_memory(user_text: str, jarvis_text: str, api_key: str) -> boo
             f"- People in the user's life (friends, family, partner, colleagues)\n"
             f"- Things the user wants to do or buy in the future\n"
             f"- Any other fact worth remembering long-term\n\n"
-            f"Reply only YES or NO.\n\nConversation:\n{combined}"
+            f"Reply only YES or NO.\n\nConversation:\n{combined}",
+            gemini_model="gemini-2.5-flash-lite"
         )
-        return "YES" in check.text.upper()
+        return "YES" in result.upper()
     except Exception as e:
-        print(f"[Memory] ⚠️ Stage1 check failed: {e}")
+        print(f"[Memory] Stage1 check failed: {e}")
         return False
 
 
@@ -145,13 +143,11 @@ def extract_memory(user_text: str, jarvis_text: str, api_key: str) -> dict:
     Stage 2: Detaylı çıkarım. Her iki tarafı da analiz eder.
     """
     try:
-        import google.generativeai as genai
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-2.5-flash-lite")
+        from core.llm import generate
 
         combined = f"User: {user_text[:500]}\nJarvis: {jarvis_text[:300]}"
 
-        raw = model.generate_content(
+        raw_text = generate(
             f"Extract ALL memorable personal facts from this conversation. Any language.\n"
             f"Return ONLY valid JSON. Use {{}} if truly nothing is worth saving.\n\n"
             f"Category guide:\n"
@@ -178,11 +174,12 @@ def extract_memory(user_text: str, jarvis_text: str, api_key: str) -> dict:
             f' "relationships":{{"friend_yusuf":{{"value":"close friend"}}}},\n'
             f' "wishes":{{"buy_guitar":{{"value":"wants an acoustic guitar"}}}},\n'
             f' "notes":{{"works_at_night":{{"value":"usually active late at night"}}}}}}\n\n'
-            f"Conversation:\n{combined}\n\nJSON:"
-        ).text.strip()
+            f"Conversation:\n{combined}\n\nJSON:",
+            gemini_model="gemini-2.5-flash-lite"
+        )
 
         import re
-        raw = re.sub(r"```(?:json)?", "", raw).strip().rstrip("`").strip()
+        raw = re.sub(r"```(?:json)?", "", raw_text).strip().rstrip("`").strip()
         if not raw or raw == "{}":
             return {}
 

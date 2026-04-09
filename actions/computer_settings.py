@@ -374,9 +374,7 @@ ACTION_MAP = {
 
 def _detect_action(description: str) -> dict:
     """Uses Gemini to detect user intent from any language."""
-    import google.generativeai as genai
-    genai.configure(api_key=_get_api_key())
-    model = genai.GenerativeModel("gemini-2.5-flash-lite")
+    from core.llm import generate
 
     available = ", ".join(sorted(ACTION_MAP.keys())) + ", volume_set, type_text, write_on_screen, reload_n, press_key"
 
@@ -406,8 +404,7 @@ IMPORTANT:
 - Return ONLY the JSON object, no explanation, no markdown."""
 
     try:
-        response = model.generate_content(prompt)
-        text = response.text.strip()
+        text = generate(prompt, gemini_model="gemini-2.5-flash-lite")
         text = __import__("re").sub(r"```(?:json)?", "", text).strip().rstrip("`").strip()
         return json.loads(text)
     except Exception as e:
