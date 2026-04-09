@@ -5,7 +5,12 @@ import platform
 import shutil
 import subprocess
 from pathlib import Path
-from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeout
+try:
+    from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeout
+    _PLAYWRIGHT_OK = True
+except ImportError:
+    _PLAYWRIGHT_OK = False
+    PlaywrightTimeout = TimeoutError
 
 def _get_default_browser_id() -> str:
     """Returns raw default browser identifier string for macOS."""
@@ -435,6 +440,9 @@ def browser_control(
         clear_first : bool, clear input before typing (default: True)
         incognito   : bool, open in private/incognito mode (default: False)
     """
+    if not _PLAYWRIGHT_OK:
+        return "Browser control requires Playwright. Run: pip install playwright && python -m playwright install chromium"
+
     _ensure_started()
 
     action   = (parameters or {}).get("action", "").lower().strip()
