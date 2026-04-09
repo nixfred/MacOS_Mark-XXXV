@@ -1,17 +1,14 @@
 # actions/desktop.py
-# AI-powered desktop & wallpaper management
-#
-# Flow for unknown tasks:
-#   User request → Gemini generates Python/pyautogui code → Safety check → Execute
+# macOS — Desktop & wallpaper management
 #
 # Built-in: wallpaper change, icon arrangement, desktop cleanup, organize by type
+# AI-powered: Gemini generates safe Python/pyautogui code for unknown tasks
 
 import os
 import sys
 import json
 import shutil
 import subprocess
-import ctypes
 import tempfile
 import pyautogui
 from pathlib import Path
@@ -55,10 +52,7 @@ def _is_safe_code(code: str) -> tuple[bool, str]:
 
 
 def _ask_gemini_for_desktop_action(task: str) -> str:
-    """
-    Asks Gemini to generate safe Python/pyautogui code
-    to accomplish a desktop-related task.
-    """
+    """Asks Gemini to generate safe Python/pyautogui code for macOS desktop tasks."""
     import google.generativeai as genai
 
     genai.configure(api_key=_get_api_key())
@@ -66,20 +60,19 @@ def _ask_gemini_for_desktop_action(task: str) -> str:
 
     desktop = str(_get_desktop())
 
-    prompt = f"""You are a Windows desktop automation expert.
+    prompt = f"""You are a macOS desktop automation expert.
 Generate safe Python code using ONLY these allowed modules:
 - pyautogui (mouse, keyboard, screenshots)
 - pathlib.Path (already imported as Path)
 - shutil (ONLY: copy2, copytree, move, disk_usage)
 - os.path (ONLY: exists, join, dirname, basename, splitext)
 - time (sleep only)
-- ctypes (Windows API calls only)
-- winreg (registry READ only)
 
 Desktop path: {desktop}
 
 Rules:
 - Output ONLY the Python code. No explanation, no markdown, no backticks.
+- This is macOS — use Command key instead of Ctrl where appropriate.
 - NO file deletion (os.remove, shutil.rmtree, unlink, etc.)
 - NO subprocess calls
 - NO exec() or eval()
@@ -105,13 +98,12 @@ def _execute_generated_code(code: str) -> str:
     """Safely executes Gemini-generated desktop automation code."""
     safe, reason = _is_safe_code(code)
     if not safe:
-        return f"⛔ Blocked for safety: {reason}"
+        return f"Blocked for safety: {reason}"
 
     allowed_globals = {
         "pyautogui": pyautogui,
         "Path": Path,
         "shutil": shutil,
-        "ctypes": ctypes,
         "time": __import__("time"),
         "os": type("os", (), {
             "path": os.path,
@@ -149,31 +141,19 @@ def _execute_generated_code(code: str) -> str:
     except Exception as e:
         return f"Execution error: {e}\n\nCode attempted:\n{code[:200]}"
 
+
 def set_wallpaper(image_path: str) -> str:
     """Sets desktop wallpaper from a local image path."""
     path = Path(image_path).expanduser().resolve()
     if not path.exists():
         return f"Image not found: {image_path}"
-    if path.suffix.lower() not in [".jpg", ".jpeg", ".png", ".bmp"]:
+    if path.suffix.lower() not in [".jpg", ".jpeg", ".png", ".bmp", ".heic"]:
         return f"Unsupported format: {path.suffix}. Use jpg, png or bmp."
 
     try:
-        if sys.platform == "win32":
-
-            abs_path = str(path.resolve())
-            ctypes.windll.user32.SystemParametersInfoW(20, 0, abs_path, 3)
-            return f"Wallpaper set: {path.name}"
-
-        elif sys.platform == "darwin":
-            script = f'tell application "Finder" to set desktop picture to POSIX file "{path}"'
-            subprocess.run(["osascript", "-e", script])
-            return f"Wallpaper set: {path.name}"
-
-        else:
-            subprocess.run(["gsettings", "set", "org.gnome.desktop.background",
-                          "picture-uri", f"file://{path}"])
-            return f"Wallpaper set: {path.name}"
-
+        script = f'tell application "Finder" to set desktop picture to POSIX file "{path}"'
+        subprocess.run(["osascript", "-e", script])
+        return f"Wallpaper set: {path.name}"
     except Exception as e:
         return f"Could not set wallpaper: {e}"
 
@@ -192,16 +172,16 @@ def set_wallpaper_from_web(url: str) -> str:
 
 
 def get_current_wallpaper() -> str:
-    """Returns the current wallpaper path."""
+    """Returns the current wallpaper path on macOS."""
     try:
-        if sys.platform == "win32":
-            import winreg
-            key  = winreg.OpenKey(winreg.HKEY_CURRENT_USER,
-                                  r"Control Panel\Desktop")
-            val, _ = winreg.QueryValueEx(key, "Wallpaper")
-            return f"Current wallpaper: {val}"
-        else:
-            return "Wallpaper path retrieval not supported on this OS."
+        result = subprocess.run(
+            ["osascript", "-e",
+             'tell application "Finder" to get POSIX path of (desktop picture as alias)'],
+            capture_output=True, text=True, timeout=5
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return f"Current wallpaper: {result.stdout.strip()}"
+        return "Could not determine current wallpaper."
     except Exception as e:
         return f"Could not get wallpaper: {e}"
 
@@ -213,15 +193,15 @@ FILE_TYPE_MAP = {
     "Music":     [".mp3", ".wav", ".flac", ".aac", ".ogg", ".wma", ".m4a"],
     "Archives":  [".zip", ".rar", ".7z", ".tar", ".gz", ".bz2"],
     "Code":      [".py", ".js", ".html", ".css", ".json", ".xml", ".ts", ".cpp", ".java", ".cs", ".php"],
-    "Executables": [".exe", ".msi", ".bat", ".cmd", ".sh"],
+    "Apps":      [".dmg", ".pkg", ".app"],
 }
 
 
 def organize_desktop(mode: str = "by_type") -> str:
     """
     Organizes desktop files.
-    mode: 'by_type' — groups by file type (Images, Documents, etc.)
-          'by_date'  — groups by month (2024-01, 2024-02, etc.)
+    mode: 'by_type' — groups by file type
+          'by_date' — groups by month
     """
     desktop = _get_desktop()
     moved   = []
@@ -231,14 +211,15 @@ def organize_desktop(mode: str = "by_type") -> str:
         if item.is_dir() or item.name.startswith("."):
             continue
 
-        if item.suffix.lower() == ".lnk":
+        # Skip macOS aliases/symlinks
+        if item.is_symlink():
             continue
 
         if mode == "by_date":
-            mtime      = datetime.fromtimestamp(item.stat().st_mtime)
+            mtime       = datetime.fromtimestamp(item.stat().st_mtime)
             folder_name = mtime.strftime("%Y-%m")
         else:
-            ext        = item.suffix.lower()
+            ext         = item.suffix.lower()
             folder_name = "Others"
             for folder, exts in FILE_TYPE_MAP.items():
                 if ext in exts:
@@ -254,7 +235,7 @@ def organize_desktop(mode: str = "by_type") -> str:
             continue
 
         shutil.move(str(item), str(new_path))
-        moved.append(f"{item.name} → {folder_name}/")
+        moved.append(f"{item.name} -> {folder_name}/")
 
     result = f"Desktop organized ({mode}). {len(moved)} files moved."
     if moved:
@@ -277,11 +258,11 @@ def list_desktop() -> str:
             continue
         if item.is_dir():
             count = len(list(item.iterdir()))
-            items.append(f"📁 {item.name}/ ({count} items)")
+            items.append(f"  {item.name}/ ({count} items)")
         else:
             size = item.stat().st_size
             size_str = f"{size/1024:.1f} KB" if size < 1024*1024 else f"{size/1024/1024:.1f} MB"
-            items.append(f"📄 {item.name} ({size_str})")
+            items.append(f"  {item.name} ({size_str})")
 
     if not items:
         return "Desktop is empty."
@@ -289,10 +270,7 @@ def list_desktop() -> str:
 
 
 def clean_desktop() -> str:
-    """
-    Moves all files on desktop into a 'Desktop Archive' folder
-    with today's date — fast cleanup without deleting anything.
-    """
+    """Moves all files on desktop into a 'Desktop Archive' folder."""
     desktop     = _get_desktop()
     today       = datetime.now().strftime("%Y-%m-%d")
     archive_dir = desktop / f"Desktop Archive {today}"
@@ -302,7 +280,7 @@ def clean_desktop() -> str:
     for item in desktop.iterdir():
         if item.is_dir() or item.name.startswith("."):
             continue
-        if item.suffix.lower() == ".lnk":
+        if item.is_symlink():
             continue
         new_path = archive_dir / item.name
         if not new_path.exists():
@@ -334,22 +312,6 @@ def desktop_control(
     player=None,
     session_memory=None
 ) -> str:
-    """
-    Called from main.py.
-
-    parameters:
-        action      : wallpaper | wallpaper_url | current_wallpaper |
-                      organize | clean | list | stats |
-                      task (AI-powered — anything else)
-
-        path        : image path for 'wallpaper'
-        url         : image URL for 'wallpaper_url'
-        mode        : 'by_type' or 'by_date' for 'organize'
-        task        : Natural language description for AI-powered actions.
-                      Example: "arrange icons by size"
-                               "show me what's on my desktop"
-                               "move all screenshots to a folder"
-    """
     action = (parameters or {}).get("action", "").lower().strip()
     task   = (parameters or {}).get("task", "").strip()
 
@@ -385,7 +347,7 @@ def desktop_control(
             if not actual_task:
                 return "Please describe what you want to do on the desktop, sir."
 
-            print(f"[Desktop] 🤖 Asking Gemini: {actual_task}")
+            print(f"[Desktop] Asking Gemini: {actual_task}")
             if player:
                 player.write_log("[Desktop] Generating action...")
 
@@ -396,7 +358,7 @@ def desktop_control(
             elif code.startswith("ERROR:"):
                 result = f"Could not generate action: {code}"
             else:
-                print(f"[Desktop] ✅ Generated code:\n{code[:200]}")
+                print(f"[Desktop] Generated code:\n{code[:200]}")
                 result = _execute_generated_code(code)
 
         else:

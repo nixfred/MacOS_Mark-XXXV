@@ -8,96 +8,30 @@ from pathlib import Path
 from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeout
 
 def _get_default_browser_id() -> str:
-    """Returns raw default browser identifier string for current OS."""
-    system = platform.system()
+    """Returns raw default browser identifier string for macOS."""
     try:
-        if system == "Windows":
-            import winreg
-            key     = winreg.OpenKey(
-                winreg.HKEY_CURRENT_USER,
-                r"Software\Microsoft\Windows\Shell\Associations\UrlAssociations\http\UserChoice"
-            )
-            prog_id = winreg.QueryValueEx(key, "ProgId")[0].lower()
-            winreg.CloseKey(key)
-            return prog_id
-
-        elif system == "Darwin":
-            result = subprocess.run(
-                ["defaults", "read",
-                 "com.apple.LaunchServices/com.apple.launchservices.secure",
-                 "LSHandlers"],
-                capture_output=True, text=True, timeout=5
-            )
-            return result.stdout.lower()
-
-        elif system == "Linux":
-            result = subprocess.run(
-                ["xdg-settings", "get", "default-web-browser"],
-                capture_output=True, text=True, timeout=5
-            )
-            return result.stdout.lower()
-
+        result = subprocess.run(
+            ["defaults", "read",
+             "com.apple.LaunchServices/com.apple.launchservices.secure",
+             "LSHandlers"],
+            capture_output=True, text=True, timeout=5
+        )
+        return result.stdout.lower()
     except Exception:
         pass
-
     return ""
 
 _BROWSER_BINARIES = {
-    "Windows": {
-        "opera":   ["opera.exe"],
-        "brave":   ["brave.exe"],
-        "vivaldi": ["vivaldi.exe"],
-        "chrome":  ["chrome.exe"],
-        "firefox": ["firefox.exe"],
-    },
-    "Darwin": {
-        "opera":   ["opera"],
-        "brave":   ["brave browser", "brave"],
-        "vivaldi": ["vivaldi"],
-        "chrome":  ["google chrome", "google-chrome"],
-        "firefox": ["firefox"],
-    },
-    "Linux": {
-        "opera":   ["opera", "opera-stable"],
-        "brave":   ["brave-browser", "brave"],
-        "vivaldi": ["vivaldi-stable", "vivaldi"],
-        "chrome":  ["google-chrome", "google-chrome-stable", "chromium-browser", "chromium"],
-        "firefox": ["firefox"],
-    },
+    "opera":   ["opera"],
+    "brave":   ["brave browser", "brave"],
+    "vivaldi": ["vivaldi"],
+    "chrome":  ["google chrome", "google-chrome"],
+    "firefox": ["firefox"],
 }
 
 
-def _get_opera_executable() -> str | None:
-    if platform.system() != "Windows":
-        return None
-    try:
-        import winreg
-        candidate_keys = [
-            r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\opera.exe",
-            r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\launcher.exe",
-            r"SOFTWARE\Clients\StartMenuInternet\OperaStable\shell\open\command",
-            r"SOFTWARE\Clients\StartMenuInternet\OperaGXStable\shell\open\command",
-        ]
-        for key_path in candidate_keys:
-            for hive in [winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER]:
-                try:
-                    key  = winreg.OpenKey(hive, key_path)
-                    val  = winreg.QueryValue(key, None)
-                    winreg.CloseKey(key)
-                    exe  = val.strip().strip('"').split('"')[0].split(" --")[0].strip()
-                    if exe and Path(exe).exists():
-                        print(f"[Browser] 🔍 Opera found via registry: {exe}")
-                        return exe
-                except Exception:
-                    continue
-    except Exception:
-        pass
-    return None
-
-
 def _find_browser_executable(prog_id: str) -> tuple:
-    system  = platform.system()
-    os_bins = _BROWSER_BINARIES.get(system, {})
+    os_bins = _BROWSER_BINARIES
 
     if any(x in prog_id for x in ["firefox", "mozilla"]):
         return "firefox", None, None
@@ -109,9 +43,6 @@ def _find_browser_executable(prog_id: str) -> tuple:
         return "chromium", None, "msedge"
 
     if "opera" in prog_id:
-        exe = _get_opera_executable()
-        if exe:
-            return "chromium", exe, None
         for binary in os_bins.get("opera", []):
             path = shutil.which(binary)
             if path:
@@ -231,7 +162,7 @@ class _BrowserThread:
                 self._context = await self._browser.new_context(
                     viewport=None,
                     user_agent=(
-                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                         "AppleWebKit/537.36 (KHTML, like Gecko) "
                         "Chrome/120.0.0.0 Safari/537.36"
                     )

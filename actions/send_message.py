@@ -1,76 +1,61 @@
 # actions/send_message.py
-# Universal messaging — WhatsApp & Instagram
-# Uses visual element detection (pyautogui + screen search) instead of
-# hardcoded tab/click sequences — works on any screen resolution.
+# macOS messaging — WhatsApp, Instagram, Telegram
+# Uses Spotlight (Cmd+Space) to launch apps and Cmd-based shortcuts
 
 import time
+import subprocess
 import pyautogui
-from pathlib import Path
 
 pyautogui.FAILSAFE = True
 pyautogui.PAUSE = 0.08
 
+
 def _open_app(app_name: str) -> bool:
-    """Opens an app via Windows search."""
+    """Opens an app via macOS open -a, falls back to Spotlight."""
     try:
-        pyautogui.press("win")
-        time.sleep(0.4)
-        pyautogui.write(app_name, interval=0.04)
+        result = subprocess.run(
+            ["open", "-a", app_name],
+            capture_output=True, timeout=8
+        )
+        if result.returncode == 0:
+            time.sleep(2.0)
+            return True
+    except Exception:
+        pass
+
+    # Fallback: Spotlight
+    try:
+        pyautogui.hotkey("command", "space")
         time.sleep(0.5)
+        pyautogui.write(app_name, interval=0.04)
+        time.sleep(0.6)
         pyautogui.press("enter")
-        time.sleep(2.0)  
+        time.sleep(2.0)
         return True
     except Exception as e:
         print(f"[SendMessage] Could not open {app_name}: {e}")
         return False
 
 
-def _search_contact(contact: str, platform: str):
-    """
-    Searches for a contact inside the messaging app.
-    Uses Ctrl+F (universal search shortcut) then types contact name.
-    """
-    time.sleep(0.5)
-    pyautogui.hotkey("ctrl", "f")
-    time.sleep(0.4)
-    pyautogui.hotkey("ctrl", "a")
-    pyautogui.write(contact, interval=0.04)
-    time.sleep(0.8)
-    pyautogui.press("enter")
-    time.sleep(0.6)
-
-
-def _type_and_send(message: str):
-    """Types message and sends it."""
-    pyautogui.press("tab")
-    time.sleep(0.2)
-    pyautogui.hotkey("ctrl", "a")
-    pyautogui.write(message, interval=0.03)
-    time.sleep(0.2)
-    pyautogui.press("enter")
-    time.sleep(0.3)
-
-
 def _send_whatsapp(receiver: str, message: str) -> str:
-    """
-    Sends a WhatsApp message via the Windows desktop app.
-    Steps: Open WhatsApp → Search contact → Click → Type → Send
-    """
+    """Sends a WhatsApp message via the macOS desktop app."""
     try:
         if not _open_app("WhatsApp"):
             return "Could not open WhatsApp."
 
         time.sleep(1.5)
 
-        pyautogui.hotkey("ctrl", "f")
+        # Search for contact
+        pyautogui.hotkey("command", "f")
         time.sleep(0.4)
-        pyautogui.hotkey("ctrl", "a")
+        pyautogui.hotkey("command", "a")
         pyautogui.write(receiver, interval=0.04)
         time.sleep(1.0)
 
         pyautogui.press("enter")
         time.sleep(0.8)
 
+        # Type and send
         pyautogui.write(message, interval=0.03)
         time.sleep(0.2)
         pyautogui.press("enter")
@@ -82,10 +67,7 @@ def _send_whatsapp(receiver: str, message: str) -> str:
 
 
 def _send_instagram(receiver: str, message: str) -> str:
-    """
-    Sends an Instagram DM via browser (instagram.com).
-    Steps: Open Chrome → Go to instagram.com/direct → Search contact → Send
-    """
+    """Sends an Instagram DM via browser."""
     try:
         import webbrowser
 
@@ -115,15 +97,16 @@ def _send_instagram(receiver: str, message: str) -> str:
     except Exception as e:
         return f"Instagram error: {e}"
 
+
 def _send_telegram(receiver: str, message: str) -> str:
-    """Sends a Telegram message via Windows desktop app."""
+    """Sends a Telegram message via the macOS desktop app."""
     try:
         if not _open_app("Telegram"):
             return "Could not open Telegram."
 
         time.sleep(1.5)
 
-        pyautogui.hotkey("ctrl", "f")
+        pyautogui.hotkey("command", "f")
         time.sleep(0.4)
         pyautogui.write(receiver, interval=0.04)
         time.sleep(1.0)
@@ -140,19 +123,55 @@ def _send_telegram(receiver: str, message: str) -> str:
         return f"Telegram error: {e}"
 
 
+def _send_imessage(receiver: str, message: str) -> str:
+    """Sends an iMessage/SMS via macOS Messages app using AppleScript."""
+    try:
+        safe_msg = message.replace('"', '\\"')
+        safe_rcv = receiver.replace('"', '\\"')
+
+        script = f'''
+tell application "Messages"
+    set targetService to 1st account whose service type = iMessage
+    set targetBuddy to participant "{safe_rcv}" of targetService
+    send "{safe_msg}" to targetBuddy
+end tell
+'''
+        result = subprocess.run(
+            ["osascript", "-e", script],
+            capture_output=True, text=True, timeout=10
+        )
+
+        if result.returncode == 0:
+            return f"iMessage sent to {receiver}."
+        else:
+            # Fallback: open Messages app and type
+            if not _open_app("Messages"):
+                return "Could not open Messages."
+            time.sleep(1.5)
+            pyautogui.hotkey("command", "n")
+            time.sleep(0.5)
+            pyautogui.write(receiver, interval=0.04)
+            time.sleep(0.5)
+            pyautogui.press("enter")
+            time.sleep(0.5)
+            pyautogui.press("tab")
+            time.sleep(0.3)
+            pyautogui.write(message, interval=0.03)
+            pyautogui.press("enter")
+            return f"Message sent to {receiver} via Messages."
+
+    except Exception as e:
+        return f"iMessage error: {e}"
+
 
 def _send_generic(platform: str, receiver: str, message: str) -> str:
-    """
-    For any other platform not explicitly supported.
-    Opens the app, searches for contact, types and sends.
-    Works for: Messenger, Discord, Signal, etc.
-    """
+    """For any other platform. Opens the app and tries search + send."""
     try:
         if not _open_app(platform):
             return f"Could not open {platform}."
 
         time.sleep(1.5)
-        pyautogui.hotkey("ctrl", "f")
+        pyautogui.hotkey("command", "f")
         time.sleep(0.4)
         pyautogui.write(receiver, interval=0.04)
         time.sleep(1.0)
@@ -167,6 +186,7 @@ def _send_generic(platform: str, receiver: str, message: str) -> str:
     except Exception as e:
         return f"{platform} error: {e}"
 
+
 def send_message(
     parameters: dict,
     response=None,
@@ -179,7 +199,7 @@ def send_message(
     parameters:
         receiver     : Contact name to send to
         message_text : The message content
-        platform     : whatsapp | instagram | telegram | <any app name>
+        platform     : whatsapp | instagram | telegram | imessage | <any app name>
                        Default: whatsapp
     """
     params       = parameters or {}
@@ -192,7 +212,7 @@ def send_message(
     if not message_text:
         return "Please specify what message to send, sir."
 
-    print(f"[SendMessage] 📨 {platform} → {receiver}: {message_text[:40]}")
+    print(f"[SendMessage] {platform} -> {receiver}: {message_text[:40]}")
     if player:
         player.write_log(f"[msg] Sending to {receiver} via {platform}...")
 
@@ -205,10 +225,13 @@ def send_message(
     elif "telegram" in platform or "tg" in platform:
         result = _send_telegram(receiver, message_text)
 
+    elif "imessage" in platform or "message" in platform or "sms" in platform or "text" in platform:
+        result = _send_imessage(receiver, message_text)
+
     else:
         result = _send_generic(platform, receiver, message_text)
 
-    print(f"[SendMessage] ✅ {result}")
+    print(f"[SendMessage] {result}")
     if player:
         player.write_log(f"[msg] {result}")
 

@@ -1,9 +1,12 @@
 # actions/reminder.py
+# macOS — Reminders via cron + osascript notification
 
 import subprocess
 import os
 import sys
+import tempfile
 from datetime import datetime
+from pathlib import Path
 
 
 def reminder(
@@ -13,7 +16,7 @@ def reminder(
     session_memory=None
 ) -> str:
     """
-    Sets a timed reminder using Windows Task Scheduler.
+    Sets a timed reminder using cron + osascript notification on macOS.
 
     parameters:
         - date    (str) YYYY-MM-DD
@@ -21,7 +24,6 @@ def reminder(
         - message (str)
 
     Returns a result string — Live API voices it automatically.
-    No edge_speak needed.
     """
 
     date_str = parameters.get("date")
@@ -37,111 +39,55 @@ def reminder(
         if target_dt <= datetime.now():
             return "That time is already in the past."
 
-        task_name    = f"MARKReminder_{target_dt.strftime('%Y%m%d_%H%M')}"
-        safe_message = message.replace('"', '').replace("'", "").strip()[:200]
+        safe_message = message.replace('"', '').replace("'", "").replace("\\", "").strip()[:200]
 
-        python_exe = sys.executable
-        if python_exe.lower().endswith("python.exe"):
-            pythonw = python_exe.replace("python.exe", "pythonw.exe")
-            if os.path.exists(pythonw):
-                python_exe = pythonw
+        # Create a self-deleting notification script
+        script_dir = Path.home() / ".mark-reminders"
+        script_dir.mkdir(exist_ok=True)
 
-        temp_dir      = os.environ.get("TEMP", "C:\\Temp")
-        notify_script = os.path.join(temp_dir, f"{task_name}.pyw")
-        project_root  = os.path.abspath(
-            os.path.join(os.path.dirname(__file__), "..")
-        )
+        task_name    = f"mark_reminder_{target_dt.strftime('%Y%m%d_%H%M')}"
+        script_path  = script_dir / f"{task_name}.sh"
 
-        script_code = f'''import sys, os, time
-sys.path.insert(0, r"{project_root}")
+        # Script plays sound, shows notification, then cleans up
+        script_code = f'''#!/bin/bash
+# MARK Reminder — auto-generated
+afplay /System/Library/Sounds/Glass.aiff &
+osascript -e 'display notification "{safe_message}" with title "MARK Reminder" sound name "Glass"'
+osascript -e 'display dialog "{safe_message}" with title "MARK Reminder" buttons {{"OK"}} default button "OK" with icon note'
 
-try:
-    import winsound
-    for freq in [800, 1000, 1200]:
-        winsound.Beep(freq, 200)
-        time.sleep(0.1)
-except Exception:
-    pass
-
-try:
-    from win10toast import ToastNotifier
-    ToastNotifier().show_toast(
-        "MARK Reminder",
-        "{safe_message}",
-        duration=15,
-        threaded=False
-    )
-except Exception:
-    try:
-        import subprocess
-        subprocess.run(["msg", "*", "/TIME:30", "{safe_message}"], shell=True)
-    except Exception:
-        pass
-
-time.sleep(3)
-try:
-    os.remove(__file__)
-except Exception:
-    pass
+# Self-cleanup: remove this script and its cron entry
+crontab -l 2>/dev/null | grep -v "{task_name}" | crontab -
+rm -f "{script_path}"
 '''
-        with open(notify_script, "w", encoding="utf-8") as f:
-            f.write(script_code)
+        script_path.write_text(script_code)
+        os.chmod(script_path, 0o755)
 
-        xml_content = f'''<?xml version="1.0" encoding="UTF-16"?>
-<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
-  <RegistrationInfo>
-    <Description>MARK Reminder: {safe_message}</Description>
-  </RegistrationInfo>
-  <Triggers>
-    <TimeTrigger>
-      <StartBoundary>{target_dt.strftime("%Y-%m-%dT%H:%M:%S")}</StartBoundary>
-      <Enabled>true</Enabled>
-    </TimeTrigger>
-  </Triggers>
-  <Actions>
-    <Exec>
-      <Command>{python_exe}</Command>
-      <Arguments>"{notify_script}"</Arguments>
-    </Exec>
-  </Actions>
-  <Settings>
-    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
-    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
-    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
-    <StartWhenAvailable>true</StartWhenAvailable>
-    <WakeToRun>true</WakeToRun>
-    <ExecutionTimeLimit>PT5M</ExecutionTimeLimit>
-    <Enabled>true</Enabled>
-  </Settings>
-  <Principals>
-    <Principal>
-      <LogonType>InteractiveToken</LogonType>
-      <RunLevel>LeastPrivilege</RunLevel>
-    </Principal>
-  </Principals>
-</Task>'''
+        # Add cron entry
+        minute = target_dt.minute
+        hour   = target_dt.hour
+        day    = target_dt.day
+        month  = target_dt.month
 
-        xml_path = os.path.join(temp_dir, f"{task_name}.xml")
-        with open(xml_path, "w", encoding="utf-16") as f:
-            f.write(xml_content)
+        cron_line = f"{minute} {hour} {day} {month} * {script_path} # {task_name}"
 
+        # Get existing crontab, append new entry
         result = subprocess.run(
-            f'schtasks /Create /TN "{task_name}" /XML "{xml_path}" /F',
-            shell=True, capture_output=True, text=True
+            ["crontab", "-l"],
+            capture_output=True, text=True
+        )
+        existing = result.stdout.strip()
+        new_crontab = f"{existing}\n{cron_line}\n" if existing else f"{cron_line}\n"
+
+        # Install updated crontab
+        proc = subprocess.run(
+            ["crontab", "-"],
+            input=new_crontab, capture_output=True, text=True
         )
 
-        try:
-            os.remove(xml_path)
-        except Exception:
-            pass
-
-        if result.returncode != 0:
-            err = result.stderr.strip() or result.stdout.strip()
-            print(f"[Reminder] ❌ schtasks failed: {err}")
-            try:
-                os.remove(notify_script)
-            except Exception:
-                pass
+        if proc.returncode != 0:
+            err = proc.stderr.strip()
+            print(f"[Reminder] crontab failed: {err}")
+            script_path.unlink(missing_ok=True)
             return "I couldn't schedule the reminder due to a system error."
 
         if player:

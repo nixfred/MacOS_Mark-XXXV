@@ -72,11 +72,11 @@ def _get_camera_index() -> int:
     except Exception:
         pass
 
-    print("[Camera] 🔍 No camera index in config. Auto-detecting...")
+    print("[Camera] Auto-detecting camera...")
     best_index = 0
 
     for idx in range(6):
-        cap = cv2.VideoCapture(idx, cv2.CAP_DSHOW)
+        cap = cv2.VideoCapture(idx, cv2.CAP_AVFOUNDATION)
         if not cap.isOpened():
             cap.release()
             continue
@@ -86,10 +86,10 @@ def _get_camera_index() -> int:
         cap.release()
         if ret and frame is not None and frame.mean() > 5:
             best_index = idx
-            print(f"[Camera] ✅ Camera found at index {idx} — saving to config.")
+            print(f"[Camera] Found camera at index {idx}")
             break
         else:
-            print(f"[Camera] ⚠️  Index {idx}: no valid frame.")
+            print(f"[Camera] Index {idx}: no valid frame.")
 
     try:
         cfg = {}
@@ -99,9 +99,9 @@ def _get_camera_index() -> int:
         cfg["camera_index"] = best_index
         with open(API_CONFIG_PATH, "w", encoding="utf-8") as f:
             json.dump(cfg, f, indent=4)
-        print(f"[Camera] 💾 Camera index {best_index} saved to config.")
+        print(f"[Camera] Camera index {best_index} saved to config.")
     except Exception as e:
-        print(f"[Camera] ⚠️  Could not save camera index: {e}")
+        print(f"[Camera] Could not save camera index: {e}")
 
     return best_index
 
@@ -125,7 +125,7 @@ def _capture_screenshot() -> bytes:
 
 def _capture_camera() -> bytes:
     camera_index = _get_camera_index()
-    cap = cv2.VideoCapture(camera_index, cv2.CAP_DSHOW)
+    cap = cv2.VideoCapture(camera_index, cv2.CAP_AVFOUNDATION)
     if not cap.isOpened():
         raise RuntimeError(f"Camera could not be opened: index {camera_index}")
     for _ in range(10):
@@ -168,7 +168,7 @@ class _LiveSession:
         ok = self._ready.wait(timeout=20)
         if not ok:
             raise RuntimeError("Vision session did not start within 20s.")
-        print("[ScreenProcess] ✅ Vision session ready (no mic)")
+        print("[ScreenProcess] Vision session ready (no mic)")
 
     def _run_loop(self):
         self._loop = asyncio.new_event_loop()
@@ -200,17 +200,17 @@ class _LiveSession:
 
         while True:
             try:
-                print("[ScreenProcess] 🔌 Vision session connecting...")
+                print("[ScreenProcess] Vision session connecting...")
                 async with client.aio.live.connect(model=LIVE_MODEL, config=config) as session:
                     self._session = session
                     self._ready.set()
-                    print("[ScreenProcess] ✅ Vision session connected")
+                    print("[ScreenProcess] Vision session connected")
                     async with asyncio.TaskGroup() as tg:
                         tg.create_task(self._send_loop())
                         tg.create_task(self._recv_loop())
                         tg.create_task(self._play_loop())
             except Exception as e:
-                print(f"[ScreenProcess] ⚠️ Disconnected: {e} — reconnecting...")
+                print(f"[ScreenProcess] Disconnected: {e} — reconnecting...")
                 self._session = None
                 self._ready.clear()
                 await asyncio.sleep(2)
@@ -232,9 +232,9 @@ class _LiveSession:
                         },
                         turn_complete=True
                     )
-                    print("[ScreenProcess] ✅ Image sent")
+                    print("[ScreenProcess] Image sent")
                 except Exception as e:
-                    print(f"[ScreenProcess] ⚠️ Send error: {e}")
+                    print(f"[ScreenProcess] Send error: {e}")
 
     async def _recv_loop(self):
         transcript_buf: list[str] = []
@@ -254,10 +254,10 @@ class _LiveSession:
                         full = re.sub(r'\s+', ' ', " ".join(transcript_buf)).strip()
                         if full:
                             self._player.write_log(f"Jarvis: {full}")
-                            print(f"[ScreenProcess] 💬 {full}")
+                            print(f"[ScreenProcess] {full}")
                     transcript_buf = []
         except Exception as e:
-            print(f"[ScreenProcess] ⚠️ Recv error: {e}")
+            print(f"[ScreenProcess] Recv error: {e}")
             transcript_buf = []
             await asyncio.sleep(0.3)
 
@@ -274,7 +274,7 @@ class _LiveSession:
                 chunk = await self._audio_in.get()
                 await asyncio.to_thread(stream.write, chunk)
         except Exception as e:
-            print(f"[ScreenProcess] ❌ Play error: {e}")
+            print(f"[ScreenProcess] Play error: {e}")
             raise
         finally:
             stream.stop()
@@ -316,7 +316,7 @@ def screen_process(
     user_text = (parameters or {}).get("text") or (parameters or {}).get("user_text", "")
     user_text = (user_text or "").strip()
     if not user_text:
-        print("[ScreenProcess] ⚠️ No user_text provided.")
+        print("[ScreenProcess] No user_text provided.")
         return False
 
     angle = (parameters or {}).get("angle", "screen").lower().strip()
@@ -328,17 +328,17 @@ def screen_process(
         if angle == "camera":
             image_bytes = _capture_camera()
             mime_type   = "image/jpeg"
-            print("[ScreenProcess] 📷 Camera captured")
+            print("[ScreenProcess] Camera captured")
         else:
             image_bytes = _capture_screenshot()
             mime_type   = "image/jpeg" if _PIL_OK else "image/png"
-            print("[ScreenProcess] 🖥️ Screen captured")
+            print("[ScreenProcess] Screen captured")
     except Exception as e:
         import traceback; traceback.print_exc()
-        print(f"[ScreenProcess] ❌ Capture error: {e}")
+        print(f"[ScreenProcess] Capture error: {e}")
         return False
 
-    print(f"[ScreenProcess] 📦 {len(image_bytes)} bytes → sending")
+    print(f"[ScreenProcess] {len(image_bytes)} bytes — sending")
     _live.analyze(image_bytes, mime_type, user_text)
     return True
 
@@ -347,11 +347,11 @@ def warmup_session(player=None):
     try:
         _ensure_started(player=player)
     except Exception as e:
-        print(f"[ScreenProcess] ⚠️ Warmup error: {e}")
+        print(f"[ScreenProcess] Warmup error: {e}")
 
 
 if __name__ == "__main__":
-    print("[TEST] screen_processor.py v8 — image-only session")
+    print("[TEST] screen_processor.py — macOS image-only session")
     print("=" * 50)
     mode    = input("screen / camera (default: screen): ").strip().lower() or "screen"
     request = input("Question (Enter for default): ").strip() or "What do you see? Be brief."
@@ -364,4 +364,4 @@ if __name__ == "__main__":
     result = screen_process({"angle": mode, "text": request}, player=None)
     print(f"Sent — {time.perf_counter()-t1:.3f}s | audio incoming...")
     time.sleep(8)
-    print(f"\n{'✅' if result else '❌'}")
+    print(f"\n{'OK' if result else 'FAILED'}")

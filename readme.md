@@ -1,48 +1,33 @@
-# 🤖 MARK XXXV
+# MARK XXXV — macOS Edition
 
-**Watch The Detailed Video To Set-up This Model**: https://www.youtube.com/watch?v=BhOsnGC_sAA
+### Voice-Controlled AI Assistant for Mac — Powered by Gemini
 
-### Next-Generation Personal AI Assistant — By FatihMakes
+A real-time voice AI that can hear, see, understand, and control your Mac.
+Zero subscriptions (unless you want to increase requests via Google AI Studio).
 
-A real-time voice AI that can hear, see, understand, and control your Windows computer.
-Local execution. Zero subscriptions (unless you want to increase requests via Google AI Studio).
-Built for intelligent automation.
----
-## ✨ Overview
-
-**MARK XXXV** is an advanced voice-driven AI assistant designed to turn your computer into an interactive intelligent system.
-Speak naturally — it listens, understands context, responds with a human-like voice, and executes tasks across your system automatically.
-Designed for speed, autonomy, and real-world usability.
----
-## 🚀 Capabilities
-
-### Core
-* **Real-time voice interaction** — Natural conversation with instant response in any language
-* **System control** — Launch apps, manage files, execute terminal commands
-* **Autonomous task execution** — Plans and completes complex multi-step workflows
-* **Visual awareness** — Full screen analysis and webcam understanding
-* **Persistent memory** — Learns your name, preferences, projects, relationships and remembers them across sessions
-* **Mute button** — Click or press F4 to instantly silence the microphone (useful when talking to others nearby)
-* **Keyboard input** — Type commands directly from the UI without speaking
+> **macOS fork** of [FatihMakes/Mark-XXXV](https://github.com/FatihMakes/Mark-XXXV) — the original Windows version. Full credit to [@FatihMakes](https://www.youtube.com/@FatihMakes) for the incredible original project.
 
 ---
-## 🆕 What's New in XXXV
 
-* 🎮 Steam & Epic Games integration — install, update, schedule, auto-shutdown
-* 🔇 Mute button (F4 / click) — no more Jarvis picking up side conversations
-* ⌨️ Keyboard input on UI — type commands without speaking
-* 🧠 Smarter memory — saves favorites, projects, relationships, plans automatically
-* 🌐 Incognito browser support
-* 🔊 Error reporting — tool failures spoken aloud
-* 🔁 Status indicator — LISTENING / SPEAKING / THINKING / MUTED states on UI
-* ⚡ Faster response — removed unnecessary round-trips before tool calls
-* 👨‍🔧 Fixed errors — removed some errors and bugs.
+## What It Does
+
+Speak naturally — JARVIS listens, understands context, responds with a human-like voice, and executes tasks on your Mac automatically.
+
+**Core capabilities:**
+* **Real-time voice interaction** — Natural conversation with instant response
+* **Mac control** — Launch apps, manage files, execute terminal commands
+* **Visual awareness** — Screen analysis and webcam understanding via Gemini Vision
+* **Persistent memory** — Learns your name, preferences, and context across sessions
+* **iMessage support** — Send texts natively via AppleScript
+* **Browser automation** — Full Playwright-based web control
+* **Reminders** — Cron-based scheduling with native macOS notifications
 
 ---
-## ⚡ Quick Start
+
+## Quick Start
 
 ```bash
-git clone https://github.com/FatihMakes/Mark-XXXV.git
+git clone https://github.com/nixfred/Mark-XXXV.git
 cd Mark-XXXV
 pip install -r requirements.txt
 playwright install
@@ -50,24 +35,60 @@ python main.py
 ```
 
 Enter your free Gemini API key on first launch.
-System ready in minutes.
----
-## 📋 Requirements
 
-* Windows 10 / 11
-* Python 3.11 or 3.12
+### Important: Accessibility Permissions
+
+For voice commands that control your Mac (typing, clicking, keyboard shortcuts), you must grant Accessibility permissions:
+
+**System Settings → Privacy & Security → Accessibility** → Add your terminal app (Terminal.app, iTerm2, etc.)
+
+---
+
+## Requirements
+
+* **macOS 12+** (Monterey or newer)
+* **Python 3.11 or 3.12**
 * Microphone
 * Free [Gemini API key](https://aistudio.google.com/apikey)
+
 ---
-## ⚠️ License
+
+## What's Different from the Windows Version
+
+| Feature | Windows Original | macOS Fork |
+|---------|-----------------|------------|
+| Volume control | pycaw/COM | osascript |
+| App launching | Win key search | `open -a` + Spotlight |
+| Reminders | Task Scheduler | cron + osascript notifications |
+| Messaging | WhatsApp/Telegram | + native iMessage support |
+| Camera | DirectShow | AVFoundation |
+| Terminal | CMD/PowerShell | zsh |
+| Game updates | Steam/Epic registry | Removed (not applicable) |
+| Screen capture | ImageGrab | mss (cross-platform) |
+| Wallpaper | ctypes.windll | osascript + Finder |
+
+---
+
+## Voice Commands
+
+| You Say | What Happens |
+|---------|-------------|
+| "Open Spotify" | Launches via `open -a Spotify` |
+| "Set volume to 40" | `osascript` volume control |
+| "What's on my screen?" | Screenshot → Gemini Vision → spoken analysis |
+| "Search for reviews" | Playwright browser automation |
+| "Remind me at 3pm" | cron job + macOS notification |
+| "Send a message to John" | WhatsApp, Telegram, or iMessage |
+| "Toggle dark mode" | System Events AppleScript |
+| "Take a screenshot" | Cmd+Shift+3 |
+| "Lock the screen" | `pmset displaysleepnow` |
+
+---
+
+## License
 
 Personal and non-commercial use only.
 Licensed under **Creative Commons BY-NC 4.0**.
 
-Engineered by a 17-year-old building a real JARVIS-style assistant.
-⭐ Star the repository to support the project.
----
-If you have questions, issues, or just want to say hi:
-
-* YouTube: [@FatihMakes](https://www.youtube.com/@FatihMakes)
-* Instagram: [@fatihmakes](https://www.instagram.com/fatihmakes/)
+Original project by [@FatihMakes](https://github.com/FatihMakes) — a 17-year-old building a real JARVIS.
+macOS port by [@nixfred](https://github.com/nixfred).

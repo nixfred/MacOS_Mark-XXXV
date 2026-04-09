@@ -9,7 +9,10 @@ from pathlib import Path
 import pyautogui
 import numpy as np
 import cv2
-from PIL import ImageGrab
+import mss
+import mss.tools
+from PIL import Image
+import io
 
 try:
     import requests
@@ -36,7 +39,7 @@ API_CONFIG_PATH = BASE_DIR / "config" / "api_keys.json"
 
 HEADERS = {
     "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
         "AppleWebKit/537.36 (KHTML, like Gecko) "
         "Chrome/120.0.0.0 Safari/537.36"
     ),
@@ -48,102 +51,53 @@ def _get_api_key() -> str:
     with open(API_CONFIG_PATH, "r", encoding="utf-8") as f:
         return json.load(f)["gemini_api_key"]
 
-def _get_default_browser_name() -> str | None:
-    """
-    Registry'den varsayılan tarayıcının gerçek yürütülebilir adını döndürür.
-    Örn: "chrome.exe", "opera.exe", "firefox.exe", "brave.exe"
-    """
-    try:
-        import winreg
-        key = winreg.OpenKey(
-            winreg.HKEY_CURRENT_USER,
-            r"Software\Microsoft\Windows\Shell\Associations\UrlAssociations\http\UserChoice"
-        )
-        prog_id = winreg.QueryValueEx(key, "ProgId")[0].lower()
-        winreg.CloseKey(key)
-
-        mapping = {
-            "chrome":   "chrome",
-            "firefox":  "firefox",
-            "opera":    "opera",
-            "brave":    "brave",
-            "vivaldi":  "vivaldi",
-            "msedge":   "msedge",
-            "edge":     "msedge",
-        }
-        for key_str, exe in mapping.items():
-            if key_str in prog_id:
-                return exe
-    except Exception as e:
-        print(f"[YouTube] ⚠️ Browser detect failed: {e}")
-    return None
-
 
 def _get_default_browser_display_name() -> str:
-    """
-    Windows Search'e yazılacak tarayıcı adını döndürür.
-    Registry → bilinen isimler → fallback "browser"
-    """
+    """Returns browser display name for macOS."""
     try:
-        import winreg
-        key = winreg.OpenKey(
-            winreg.HKEY_CURRENT_USER,
-            r"Software\Microsoft\Windows\Shell\Associations\UrlAssociations\http\UserChoice"
+        result = subprocess.run(
+            ["defaults", "read",
+             "com.apple.LaunchServices/com.apple.launchservices.secure",
+             "LSHandlers"],
+            capture_output=True, text=True, timeout=5
         )
-        prog_id = winreg.QueryValueEx(key, "ProgId")[0].lower()
-        winreg.CloseKey(key)
-
-        display_names = {
-            "chrome":  "Google Chrome",
-            "firefox": "Firefox",
-            "opera":   "Opera",
-            "brave":   "Brave",
-            "vivaldi": "Vivaldi",
-            "msedge":  "Microsoft Edge",
-            "edge":    "Microsoft Edge",
-        }
-        for key_str, name in display_names.items():
-            if key_str in prog_id:
-                return name
+        output = result.stdout.lower()
+        if "firefox" in output:
+            return "Firefox"
+        if "brave" in output:
+            return "Brave Browser"
+        if "opera" in output:
+            return "Opera"
+        if "edge" in output:
+            return "Microsoft Edge"
     except Exception:
         pass
     return "Google Chrome"
 
 
 def open_browser():
-    """
-    Varsayılan tarayıcıyı açar.
-    Yöntem 1: subprocess ile direkt exe bul ve çalıştır (en hızlı).
-    Yöntem 2: Windows Search'te gerçek tarayıcı adını yaz.
-    """
-    import shutil
+    """Opens the default browser on macOS."""
+    browser = _get_default_browser_display_name()
+    try:
+        subprocess.Popen(["open", "-a", browser])
+        time.sleep(2.5)
+        print(f"[YouTube] Opened browser: {browser}")
+    except Exception as e:
+        print(f"[YouTube] Direct open failed: {e}, trying Spotlight...")
+        pyautogui.hotkey("command", "space")
+        time.sleep(0.5)
+        pyautogui.write(browser, interval=0.04)
+        time.sleep(0.7)
+        pyautogui.press("enter")
+        time.sleep(2.5)
 
-    browser_exe = _get_default_browser_name()
-
-    if browser_exe:
-        exe_path = shutil.which(browser_exe) or shutil.which(browser_exe + ".exe")
-        if exe_path:
-            try:
-                subprocess.Popen([exe_path])
-                time.sleep(2.5)
-                print(f"[YouTube] ✅ Opened browser via exe: {exe_path}")
-                return
-            except Exception as e:
-                print(f"[YouTube] ⚠️ Direct exe failed: {e}")
-
-    display_name = _get_default_browser_display_name()
-    print(f"[YouTube] 🔍 Opening via Windows Search: '{display_name}'")
-    pyautogui.press("win")
-    time.sleep(0.5)
-    pyautogui.write(display_name, interval=0.04)
-    time.sleep(0.7)
-    pyautogui.press("enter")
-    time.sleep(2.5)
 
 def find_video_thumbnails() -> list[tuple[int, int]]:
     try:
-        screenshot = ImageGrab.grab()
-        img        = np.array(screenshot)
+        with mss.mss() as sct:
+            shot = sct.grab(sct.monitors[1])
+            img = np.array(Image.frombytes("RGB", shot.size, shot.rgb))
+
         screen_h, screen_w = img.shape[:2]
 
         roi_top    = int(screen_h * 0.10)
@@ -182,7 +136,7 @@ def find_video_thumbnails() -> list[tuple[int, int]]:
         return filtered
 
     except Exception as e:
-        print(f"[YouTube] ⚠️ Thumbnail detection failed: {e}")
+        print(f"[YouTube] Thumbnail detection failed: {e}")
         return []
 
 def _extract_video_id(url: str) -> str | None:
@@ -211,7 +165,7 @@ def _ask_for_url(prompt_text: str = "YouTube video URL:") -> str | None:
         url = simpledialog.askstring("J.A.R.V.I.S", prompt_text, parent=root)
         return url.strip() if url else None
     except Exception as e:
-        print(f"[YouTube] ⚠️ URL dialog failed: {e}")
+        print(f"[YouTube] URL dialog failed: {e}")
         return None
 
 
@@ -248,7 +202,7 @@ def _get_transcript(video_id: str) -> str | None:
         return text
 
     except Exception as e:
-        print(f"[YouTube] ⚠️ Transcript fetch failed: {e}")
+        print(f"[YouTube] Transcript fetch failed: {e}")
         return None
 
 
@@ -294,16 +248,7 @@ def _save_to_notepad(content: str, video_url: str) -> str:
     )
 
     filepath.write_text(header + content, encoding="utf-8")
-
-    system = platform.system()
-    open_fn = {
-        "Windows": lambda p: subprocess.Popen(["notepad.exe", str(p)]),
-        "Darwin":  lambda p: subprocess.Popen(["open", "-t", str(p)]),
-        "Linux":   lambda p: subprocess.Popen(["xdg-open", str(p)]),
-    }
-    opener = open_fn.get(system)
-    if opener:
-        opener(filepath)
+    subprocess.Popen(["open", "-t", str(filepath)])
 
     return str(filepath)
 
@@ -343,11 +288,11 @@ def _scrape_video_info(video_id: str) -> dict:
         return info
 
     except Exception as e:
-        print(f"[YouTube] ⚠️ Info scrape failed: {e}")
+        print(f"[YouTube] Info scrape failed: {e}")
         return {}
 
 
-def _scrape_trending(region: str = "TR", max_results: int = 8) -> list[dict]:
+def _scrape_trending(region: str = "US", max_results: int = 8) -> list[dict]:
     if not _REQUESTS_OK:
         return []
 
@@ -373,7 +318,7 @@ def _scrape_trending(region: str = "TR", max_results: int = 8) -> list[dict]:
         return results
 
     except Exception as e:
-        print(f"[YouTube] ⚠️ Trending scrape failed: {e}")
+        print(f"[YouTube] Trending scrape failed: {e}")
         return []
 
 def _handle_play(parameters: dict, player) -> str:
@@ -389,7 +334,7 @@ def _handle_play(parameters: dict, player) -> str:
     search_query = query.replace(" ", "+")
     url = f"https://www.youtube.com/results?search_query={search_query}"
 
-    pyautogui.hotkey("ctrl", "l")
+    pyautogui.hotkey("command", "l")
     time.sleep(0.3)
     pyautogui.write(url, interval=0.02)
     pyautogui.press("enter")
@@ -482,7 +427,7 @@ def _handle_get_info(parameters: dict, player, speak) -> str:
 
 
 def _handle_trending(parameters: dict, player, speak) -> str:
-    region = parameters.get("region", "TR").upper()
+    region = parameters.get("region", "US").upper()
 
     if player:
         player.write_log(f"[YouTube] Trending: {region}")
@@ -493,7 +438,7 @@ def _handle_trending(parameters: dict, player, speak) -> str:
 
     lines = [f"Top trending videos in {region}:"]
     for item in trending:
-        lines.append(f"{item['rank']}. {item['title']} — {item['channel']}")
+        lines.append(f"{item['rank']}. {item['title']} -- {item['channel']}")
 
     result = "\n".join(lines)
 
@@ -528,7 +473,7 @@ def youtube_video(
     if player:
         player.write_log(f"[YouTube] Action: {action}")
 
-    print(f"[YouTube] ▶️ Action: {action}  Params: {params}")
+    print(f"[YouTube] Action: {action}  Params: {params}")
 
     handler = _ACTION_MAP.get(action)
     if handler is None:
@@ -539,5 +484,5 @@ def youtube_video(
             return handler(params, player) or "Done."
         return handler(params, player, speak) or "Done."
     except Exception as e:
-        print(f"[YouTube] ❌ Error in {action}: {e}")
+        print(f"[YouTube] Error in {action}: {e}")
         return f"YouTube {action} failed, sir: {e}"
