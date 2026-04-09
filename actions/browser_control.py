@@ -110,10 +110,10 @@ class _BrowserThread:
         future = asyncio.run_coroutine_threadsafe(coro, self._loop)
         return future.result(timeout=timeout)
 
-    # ── Tarayıcı başlatma ────────────────────────────────────────────────────
+    # ── Browser launch ──────────────────────────────────────────────────────
 
     async def _launch_browser_if_needed(self):
-        """Ana tarayıcıyı başlat (henüz başlatılmadıysa)."""
+        """Launch the main browser if not already running."""
         if self._browser and self._browser.is_connected():
             return
 
@@ -145,8 +145,8 @@ class _BrowserThread:
 
     async def _get_page(self, incognito: bool = False):
         """
-        Sayfa döndürür.
-        incognito=True → özel/gizli sekme
+        Returns a page.
+        incognito=True → private/incognito tab
         incognito=False → normal sekme
         """
         await self._launch_browser_if_needed()
@@ -172,11 +172,11 @@ class _BrowserThread:
 
     async def _get_incognito_page(self):
         """
-        Gizli/özel sekme açar.
+        Opens a private/incognito tab.
         Chromium → new_context(no_viewport, storage_state temiz)
         Firefox  → new_context(incognito)  [Playwright'ta firefox private]
         """
-        # Mevcut gizli sayfa varsa kapat, yenisini aç
+        # Return existing incognito page if open
         if self._incog_page and not self._incog_page.is_closed():
             return self._incog_page
 
@@ -233,7 +233,7 @@ class _BrowserThread:
         print("[Browser] ✅ Private/incognito page ready.")
         return self._incog_page
 
-    # ── Eylemler ─────────────────────────────────────────────────────────────
+    # ── Actions ──────────────────────────────────────────────────────────────
 
     async def _go_to(self, url: str, incognito: bool = False) -> str:
         if not url.startswith("http"):

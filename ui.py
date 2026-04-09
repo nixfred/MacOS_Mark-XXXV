@@ -53,7 +53,7 @@ class JarvisUI:
         self.FCX     = W // 2
         self.FCY     = int(H * 0.13) + self.FACE_SZ // 2
 
-        # ── Durum ────────────────────────────────────────────────────────────
+        # ── State ────────────────────────────────────────────────────────────
         self.speaking     = False
         self.muted        = False          # Mute flag — main.py okur
         self.scale        = 1.0
@@ -69,14 +69,14 @@ class JarvisUI:
         self.status_text  = "INITIALISING"
         self.status_blink = True
 
-        # Dışarıdan set edilebilen durum (main.py çağırır)
-        # Değerler: "LISTENING" | "SPEAKING" | "THINKING" | "MUTED" | "ONLINE"
+        # State set externally by main.py
+        # Values: "LISTENING" | "SPEAKING" | "THINKING" | "MUTED" | "ONLINE"
         self._jarvis_state = "INITIALISING"
 
         self.typing_queue = deque()
         self.is_typing    = False
 
-        # Klavye girişinden komutu iletmek için callback — main.py atar
+        # Keyboard input callback — set by main.py
         self.on_text_command = None
 
         self._face_pil         = None
@@ -107,7 +107,7 @@ class JarvisUI:
         self.log_text.tag_config("sys", foreground=C_ACC2)
         self.log_text.tag_config("err", foreground=C_RED)
 
-        # ── Klavye girişi ─────────────────────────────────────────────────────
+        # ── Keyboard input ────────────────────────────────────────────────────
         INPUT_Y = LOG_Y + LH + 6
         self._build_input_bar(LW, INPUT_Y)
 
@@ -128,7 +128,7 @@ class JarvisUI:
     # ── Mute butonu ───────────────────────────────────────────────────────────
 
     def _build_mute_button(self):
-        """Sol alt köşeye mute butonu yerleştirir."""
+        """Places the mute button in the bottom-left corner."""
         BTN_W, BTN_H = 110, 32
         BTN_X = 18
         BTN_Y = self.H - 70
@@ -174,7 +174,7 @@ class JarvisUI:
     # ── Klavye girişi ─────────────────────────────────────────────────────────
 
     def _build_input_bar(self, lw: int, y: int):
-        """Log'un hemen altına tek satır metin giriş alanı."""
+        """Single-line text input bar below the log."""
         x0    = (self.W - lw) // 2
         BTN_W = 70
         INP_W = lw - BTN_W - 4
@@ -222,11 +222,11 @@ class JarvisUI:
                 daemon=True
             ).start()
 
-    # ── Durum yönetimi ────────────────────────────────────────────────────────
+    # ── State management ─────────────────────────────────────────────────────
 
     def set_state(self, state: str):
         """
-        main.py'den çağrılır.
+        Called from main.py.
         state: LISTENING | SPEAKING | THINKING | MUTED | ONLINE | PROCESSING
         """
         self._jarvis_state = state
@@ -249,7 +249,7 @@ class JarvisUI:
             self.status_text = "ONLINE"
             self.speaking    = False
 
-    # ── Yüz yükleme ───────────────────────────────────────────────────────────
+    # ── Face loading ────────────────────────────────────────────────────────
 
     def _load_face(self, path):
         FW = self.FACE_SZ
@@ -268,7 +268,7 @@ class JarvisUI:
         f = a / 255.0
         return f"#{int(r*f):02x}{int(g*f):02x}{int(b*f):02x}"
 
-    # ── Animasyon döngüsü ─────────────────────────────────────────────────────
+    # ── Animation loop ──────────────────────────────────────────────────────
 
     def _animate(self):
         self.tick += 1
@@ -310,7 +310,7 @@ class JarvisUI:
         self._draw()
         self.root.after(16, self._animate)
 
-    # ── Çizim ─────────────────────────────────────────────────────────────────
+    # ── Drawing ───────────────────────────────────────────────────────────────
 
     def _draw(self):
         c    = self.bg
@@ -321,7 +321,7 @@ class JarvisUI:
         FW   = self.FACE_SZ
         c.delete("all")
 
-        # Arka plan grid
+        # Background grid
         for x in range(0, W, 44):
             for y in range(0, H, 44):
                 c.create_rectangle(x, y, x+1, y+1, fill=C_DIMMER, outline="")
@@ -351,7 +351,7 @@ class JarvisUI:
                 c.create_oval(FCX-r, FCY-r, FCX+r, FCY+r,
                               outline=self._ac(0, 212, 255, pa), width=2)
 
-        # Dönen halkalar
+        # Spinning rings
         for idx, (r_frac, w_ring, arc_l, gap) in enumerate([
                 (0.47, 3, 110, 75), (0.39, 2, 75, 55), (0.31, 1, 55, 38)]):
             ring_r = int(FW * r_frac)
@@ -364,7 +364,7 @@ class JarvisUI:
                              start=start, extent=arc_l,
                              outline=col, width=w_ring, style="arc")
 
-        # Tarama yayları
+        # Scanner arcs
         sr      = int(FW * 0.49)
         scan_a  = min(255, int(self.halo_a * 1.4))
         arc_ext = 70 if self.speaking else 42
@@ -376,7 +376,7 @@ class JarvisUI:
                      start=self.scan2_angle, extent=arc_ext,
                      outline=self._ac(255, 100, 0, scan_a // 2), width=2, style="arc")
 
-        # Derecelendirme işaretleri
+        # Tick marks
         t_out = int(FW * 0.495)
         t_in  = int(FW * 0.472)
         a_mk  = self._ac(0, 212, 255, 155)
@@ -396,7 +396,7 @@ class JarvisUI:
                 (FCX, FCY - ch_r, FCX, FCY - gap), (FCX, FCY + gap, FCX, FCY + ch_r)]:
             c.create_line(x1, y1, x2, y2, fill=ch_a, width=1)
 
-        # Köşe braketleri
+        # Corner brackets
         blen = 22
         bc   = self._ac(0, 212, 255, 200)
         hl = FCX - FW // 2; hr = FCX + FW // 2
@@ -406,13 +406,13 @@ class JarvisUI:
             c.create_line(bx, by, bx + sdx * blen, by,            fill=bc, width=2)
             c.create_line(bx, by, bx,               by + sdy * blen, fill=bc, width=2)
 
-        # Yüz / orb
+        # Face / orb
         if self._has_face:
             fw = int(FW * self.scale)
             if (self._face_scale_cache is None or
                     abs(self._face_scale_cache[0] - self.scale) > 0.004):
                 scaled = self._face_pil.resize((fw, fw), Image.BILINEAR)
-                # Mute'ta hafif kırmızı tint
+                # Slight red tint when muted
                 if self.muted:
                     tinted = scaled.copy()
                     r_ch, g_ch, b_ch, a_ch = tinted.split()
@@ -452,7 +452,7 @@ class JarvisUI:
         c.create_text(W - 16, 31, text=time.strftime("%H:%M:%S"),
                       fill=C_PRI, font=("Courier", 14, "bold"), anchor="e")
 
-        # ── Durum göstergesi ──────────────────────────────────────────────────
+        # ── Status indicator ──────────────────────────────────────────────────
         sy = FCY + FW // 2 + 45
 
         if self.muted:
@@ -481,7 +481,7 @@ class JarvisUI:
         c.create_text(W // 2, sy, text=stat,
                       fill=sc, font=("Courier", 11, "bold"))
 
-        # ── Ses dalgası ───────────────────────────────────────────────────────
+        # ── Audio waveform ──────────────────────────────────────────────────
         wy = sy + 22
         N  = 32
         BH = 18
@@ -506,7 +506,7 @@ class JarvisUI:
         c.create_rectangle(0, H - 28, W, H, fill="#00080d", outline="")
         c.create_line(0, H - 28, W, H - 28, fill=C_DIM, width=1)
 
-        # F4 ipucu sağ tarafta
+        # F4 hint on the right
         c.create_text(W - 16, H - 14, fill=C_DIM, font=("Courier", 8),
                       text="[F4] MUTE", anchor="e")
         c.create_text(W // 2, H - 14, fill=C_DIM, font=("Courier", 8),
@@ -554,7 +554,7 @@ class JarvisUI:
             self.log_text.configure(state="disabled")
             self.root.after(25, self._start_typing)
 
-    # ── Eski compat metotlar (main.py hâlâ bunları çağırabilir) ──────────────
+    # ── Legacy compat methods (main.py may still call these) ────────────────
 
     def start_speaking(self):
         self.set_state("SPEAKING")

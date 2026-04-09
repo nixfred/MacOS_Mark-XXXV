@@ -27,7 +27,7 @@ PLATFORM:
 LANGUAGE:
 - Respond in the same language the user spoke.
 - Always extract tool parameters in English.
-- Example: "Atlanta'da hava nasil?" -> weather_report city:"Atlanta", reply in Turkish.
+- Example: "What's the weather in Atlanta?" -> weather_report city:"Atlanta", reply in English.
 
 TOOL SELECTION:
 - computer_settings -> volume, brightness, screen, refresh, scroll, minimize, maximize,

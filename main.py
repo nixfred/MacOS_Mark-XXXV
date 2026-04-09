@@ -65,7 +65,7 @@ def _load_system_prompt() -> str:
         )
 
 
-# ── Hafıza ────────────────────────────────────────────────────────────────────
+# ── Memory ────────────────────────────────────────────────────────────────────
 _last_memory_input = ""
 
 
@@ -181,7 +181,7 @@ TOOL_DECLARATIONS = [
                 "action": {"type": "STRING", "description": "play | summarize | get_info | trending (default: play)"},
                 "query":  {"type": "STRING", "description": "Search query for play action"},
                 "save":   {"type": "BOOLEAN", "description": "Save summary to Notepad (summarize only)"},
-                "region": {"type": "STRING", "description": "Country code for trending e.g. TR, US"},
+                "region": {"type": "STRING", "description": "Country code for trending. Default: US"},
                 "url":    {"type": "STRING", "description": "Video URL for get_info action"},
             },
             "required": []
@@ -507,7 +507,7 @@ class JarvisLive:
         print(f"[JARVIS] 🔧 {name}  {args}")
         self.ui.set_state("THINKING")
 
-        # ── save_memory: sessiz, hızlı, Gemini'ye bildirim yok ───────────────
+        # ── save_memory: silent, fast, no notification to Gemini ───────────────
         if name == "save_memory":
             category = args.get("category", "notes")
             key      = args.get("key", "")

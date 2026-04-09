@@ -7,8 +7,8 @@
 #   explain      → Explain what a piece of code or file does
 #   run          → Execute a script file, return output
 #   build        → Write → Run → Fix loop (max 3 attempts), speaks when done
-#   screen_debug → Screenshot al, ekrandaki kodu/hatayı Gemini ile analiz et ve düzelt
-#   optimize     → Mevcut kodu Gemini ile optimize et (performans, okunabilirlik, best practices)
+#   screen_debug → Screenshot screen, analyze code/errors with Gemini vision
+#   optimize     → Optimize existing code (performance, readability, best practices)
 #   auto         → (default) Intent auto-detected from context
 
 import subprocess

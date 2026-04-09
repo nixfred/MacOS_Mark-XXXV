@@ -113,8 +113,7 @@ def update_memory(memory_update: dict) -> dict:
 
 def should_extract_memory(user_text: str, jarvis_text: str, api_key: str) -> bool:
     """
-    Stage 1: Hızlı YES/NO kontrolü.
-    Öncekinden daha geniş kriterler — favori şeyler, projeler, arkadaşlar da dahil.
+    Stage 1: Quick YES/NO check for personal info worth saving.
     """
     try:
         from core.llm import generate
@@ -140,7 +139,7 @@ def should_extract_memory(user_text: str, jarvis_text: str, api_key: str) -> boo
 
 def extract_memory(user_text: str, jarvis_text: str, api_key: str) -> dict:
     """
-    Stage 2: Detaylı çıkarım. Her iki tarafı da analiz eder.
+    Stage 2: Detailed extraction from both user and assistant turns.
     """
     try:
         from core.llm import generate

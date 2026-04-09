@@ -132,12 +132,12 @@ def _build_google_flights_url(
         url = (
             f"{base}?q=Flights+from+{origin}+to+{destination}"
             f"+on+{date}+returning+{return_date}"
-            f"&curr=TRY"
+            f"&curr=USD"
         )
     else:
         url = (
             f"{base}?q=Flights+from+{origin}+to+{destination}+on+{date}"
-            f"&curr=TRY"
+            f"&curr=USD"
         )
 
     return url
