@@ -515,6 +515,14 @@ class JarvisUI:
     # ── Log ───────────────────────────────────────────────────────────────────
 
     def write_log(self, text: str):
+        # Tkinter is not thread-safe. Callers run in asyncio worker threads,
+        # so bounce the actual widget work back onto the Tk main thread.
+        try:
+            self.root.after(0, self._write_log_impl, text)
+        except RuntimeError:
+            pass
+
+    def _write_log_impl(self, text: str):
         self.typing_queue.append(text)
         tl = text.lower()
         if tl.startswith("you:"):
