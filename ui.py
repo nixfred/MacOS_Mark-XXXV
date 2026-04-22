@@ -114,8 +114,13 @@ class JarvisUI:
         # ── Mute butonu ───────────────────────────────────────────────────────
         self._build_mute_button()
 
-        # ── F4 kısayolu ───────────────────────────────────────────────────────
+        # ── Mute shortcuts ───────────────────────────────────────────────────
+        # F4 is intercepted by macOS on most hardware (Launchpad); keep it
+        # for consistency but also bind Cmd+M as a reliable keyboard toggle
+        # that always works even when the button's click is starved.
         self.root.bind("<F4>", lambda e: self._toggle_mute())
+        self.root.bind_all("<Command-m>", lambda e: self._toggle_mute())
+        self.root.bind_all("<Command-M>", lambda e: self._toggle_mute())
 
         # ── API key ───────────────────────────────────────────────────────────
         self._api_key_ready = self._api_keys_exist()
@@ -318,7 +323,10 @@ class JarvisUI:
             self.status_blink = not self.status_blink
 
         self._draw()
-        self.root.after(16, self._animate)
+        # 30 fps — 60 fps saturates the Tk mainloop on aqua enough that
+        # mouse clicks on buttons land intermittently (classic first-click
+        # responder starvation). 30 fps looks equally smooth for this UI.
+        self.root.after(33, self._animate)
 
     # ── Drawing ───────────────────────────────────────────────────────────────
 
@@ -567,14 +575,19 @@ class JarvisUI:
         self._type_char(text, 0, tag)
 
     def _type_char(self, text, i, tag):
+        # Insert several chars per tick to cut after-callback frequency
+        # (old: 125 after/sec; new: ~25 after/sec) while keeping the
+        # typewriter feel. Heavy after-queue traffic was starving click
+        # delivery to tk.Button on aqua.
         if i < len(text):
-            self.log_text.insert(tk.END, text[i], tag)
+            end = min(i + 4, len(text))
+            self.log_text.insert(tk.END, text[i:end], tag)
             self.log_text.see(tk.END)
-            self.root.after(8, self._type_char, text, i + 1, tag)
+            self.root.after(32, self._type_char, text, end, tag)
         else:
             self.log_text.insert(tk.END, "\n")
             self.log_text.configure(state="disabled")
-            self.root.after(25, self._start_typing)
+            self.root.after(40, self._start_typing)
 
     # ── Legacy compat methods (main.py may still call these) ────────────────
 

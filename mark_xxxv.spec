@@ -128,8 +128,8 @@ app = BUNDLE(
     info_plist={
         'CFBundleName': 'MARK XXXV',
         'CFBundleDisplayName': 'MARK XXXV',
-        'CFBundleVersion': '0.9.5',
-        'CFBundleShortVersionString': '0.9.5',
+        'CFBundleVersion': '0.9.6',
+        'CFBundleShortVersionString': '0.9.6',
         'NSMicrophoneUsageDescription': 'MARK XXXV needs microphone access for voice commands.',
         'NSCameraUsageDescription': 'MARK XXXV needs camera access for visual analysis.',
         'NSAppleEventsUsageDescription': 'MARK XXXV uses AppleScript to control system settings.',
