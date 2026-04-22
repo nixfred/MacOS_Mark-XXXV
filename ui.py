@@ -139,6 +139,12 @@ class JarvisUI:
         )
         self._mute_canvas.place(x=BTN_X, y=BTN_Y)
         self._mute_canvas.bind("<Button-1>", lambda e: self._toggle_mute())
+        # Ensure mute canvas sits above the fullscreen background canvas,
+        # otherwise aqua sometimes routes the click to the widget beneath.
+        # On Canvas, both lift() and tkraise() are aliased to tag_raise
+        # (item-level); call the Tcl `raise` command directly to restack
+        # the widget itself.
+        self._mute_canvas.tk.call("raise", self._mute_canvas._w)
         self._draw_mute_button()
 
     def _draw_mute_button(self):
@@ -523,19 +529,23 @@ class JarvisUI:
             pass
 
     def _write_log_impl(self, text: str):
+        # Do NOT drive set_state from here. The speaking/listening state is
+        # authoritatively owned by main.py's set_speaking(). Because write_log
+        # is now deferred via after(0, ...), a "Jarvis: ..." log arriving
+        # after set_speaking(False) would otherwise race back to SPEAKING
+        # and never return to LISTENING.
         self.typing_queue.append(text)
-        tl = text.lower()
-        if tl.startswith("you:"):
-            self.set_state("PROCESSING")
-        elif tl.startswith("jarvis:") or tl.startswith("ai:"):
-            self.set_state("SPEAKING")
         if not self.is_typing:
             self._start_typing()
 
     def _start_typing(self):
         if not self.typing_queue:
             self.is_typing = False
-            if not self.speaking and not self.muted:
+            # Only auto-revert to LISTENING from a "finished speaking / typing"
+            # state. Don't clobber THINKING (main.py owns that) or MUTED.
+            if (not self.speaking
+                    and not self.muted
+                    and self._jarvis_state in ("SPEAKING", "PROCESSING", "INITIALISING")):
                 self.set_state("LISTENING")
             return
         self.is_typing = True
