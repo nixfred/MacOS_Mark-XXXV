@@ -128,44 +128,48 @@ class JarvisUI:
     # ── Mute butonu ───────────────────────────────────────────────────────────
 
     def _build_mute_button(self):
-        """Places the mute button in the bottom-left corner."""
+        """Places the mute button in the bottom-left corner.
+
+        Uses a native tk.Button rather than a tk.Canvas with a <Button-1>
+        bind: on aqua, a child Canvas place()'d over a fullscreen
+        background Canvas reliably swallows click events. tk.Button is a
+        native widget with guaranteed click delivery via `command=`.
+        """
         BTN_W, BTN_H = 110, 32
         BTN_X = 18
         BTN_Y = self.H - 70
 
-        self._mute_canvas = tk.Canvas(
-            self.root, width=BTN_W, height=BTN_H,
-            bg=C_BG, highlightthickness=0, cursor="hand2"
+        self._mute_btn = tk.Button(
+            self.root,
+            text="🎙 LIVE",
+            command=self._toggle_mute,
+            fg=C_GREEN, bg=C_PANEL,
+            activeforeground=C_GREEN, activebackground="#002018",
+            font=("Courier", 10, "bold"),
+            borderwidth=1, relief="solid",
+            highlightthickness=0,
+            cursor="hand2",
         )
-        self._mute_canvas.place(x=BTN_X, y=BTN_Y)
-        self._mute_canvas.bind("<Button-1>", lambda e: self._toggle_mute())
-        # Ensure mute canvas sits above the fullscreen background canvas,
-        # otherwise aqua sometimes routes the click to the widget beneath.
-        # On Canvas, both lift() and tkraise() are aliased to tag_raise
-        # (item-level); call the Tcl `raise` command directly to restack
-        # the widget itself.
-        self._mute_canvas.tk.call("raise", self._mute_canvas._w)
+        self._mute_btn.place(x=BTN_X, y=BTN_Y, width=BTN_W, height=BTN_H)
+        # Raise above the fullscreen bg canvas.
+        self._mute_btn.tk.call("raise", self._mute_btn._w)
         self._draw_mute_button()
 
     def _draw_mute_button(self):
-        c = self._mute_canvas
-        c.delete("all")
         if self.muted:
-            border = C_MUTED
-            fill   = "#1a0008"
-            icon   = "🔇"
-            label  = " MUTED"
-            fg     = C_MUTED
+            text = "🔇 MUTED"
+            fg   = C_MUTED
+            bg   = "#1a0008"
+            active_bg = "#2a0010"
         else:
-            border = C_MID
-            fill   = C_PANEL
-            icon   = "🎙"
-            label  = " LIVE"
-            fg     = C_GREEN
-
-        c.create_rectangle(0, 0, 110, 32, outline=border, fill=fill, width=1)
-        c.create_text(55, 16, text=f"{icon}{label}",
-                      fill=fg, font=("Courier", 10, "bold"))
+            text = "🎙 LIVE"
+            fg   = C_GREEN
+            bg   = C_PANEL
+            active_bg = "#002018"
+        self._mute_btn.configure(
+            text=text, fg=fg, bg=bg,
+            activeforeground=fg, activebackground=active_bg,
+        )
 
     def _toggle_mute(self):
         self.muted = not self.muted
