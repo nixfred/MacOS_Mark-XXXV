@@ -16,6 +16,8 @@ a = Analysis(
         ('agent/*.py', 'agent'),
         ('memory/*.py', 'memory'),
         ('memory/__init__.py', 'memory'),
+        ('config/__init__.py', 'config'),
+        ('config/api_keys.json', 'config'),
     ],
     hiddenimports=[
         'google.genai',
@@ -64,6 +66,7 @@ a = Analysis(
         'core.llm',
         'memory.memory_manager',
         'memory.config_manager',
+        'config',
     ],
     hookspath=[],
     hooksconfig={},
@@ -113,8 +116,8 @@ app = BUNDLE(
     info_plist={
         'CFBundleName': 'MARK XXXV',
         'CFBundleDisplayName': 'MARK XXXV',
-        'CFBundleVersion': '0.9.0',
-        'CFBundleShortVersionString': '0.9',
+        'CFBundleVersion': '0.9.1',
+        'CFBundleShortVersionString': '0.9.1',
         'NSMicrophoneUsageDescription': 'MARK XXXV needs microphone access for voice commands.',
         'NSCameraUsageDescription': 'MARK XXXV needs camera access for visual analysis.',
         'NSAppleEventsUsageDescription': 'MARK XXXV uses AppleScript to control system settings.',

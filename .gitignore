@@ -1,8 +1,28 @@
+# Python
 *.pyc
 __pycache__/
-*.pyc
-__pycache__/
-config/
-memory/long_term.json
+*.pyo
+
+# Virtualenv
+.venv/
+venv/
+
+# Build artifacts
 dist/
 build/
+*.spec.bak
+
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+
+# Secrets — api_keys only, not the whole config/ dir
+config/api_keys.json
+config/*.json
+!config/__init__.py
+
+# Runtime state
+memory/long_term.json

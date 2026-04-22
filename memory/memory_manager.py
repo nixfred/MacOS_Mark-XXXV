@@ -22,6 +22,7 @@ BASE_DIR         = get_base_dir()
 MEMORY_PATH      = BASE_DIR / "memory" / "long_term.json"
 _lock            = Lock()
 MAX_VALUE_LENGTH = 400
+MEMORY_MAX_CHARS = 2200
 
 
 def _empty_memory() -> dict:
@@ -54,9 +55,34 @@ def load_memory() -> dict:
             return _empty_memory()
 
 
+def _all_entries(memory: dict) -> list[tuple]:
+    entries = []
+    for cat, items in memory.items():
+        if not isinstance(items, dict):
+            continue
+        for key, entry in items.items():
+            if isinstance(entry, dict) and "value" in entry:
+                entries.append((cat, key, entry))
+    return entries
+
+
+def _trim_to_limit(memory: dict) -> dict:
+    if len(json.dumps(memory, ensure_ascii=False)) <= MEMORY_MAX_CHARS:
+        return memory
+    entries = _all_entries(memory)
+    entries.sort(key=lambda t: t[2].get("updated", "0000-00-00"))
+    for cat, key, _ in entries:
+        if len(json.dumps(memory, ensure_ascii=False)) <= MEMORY_MAX_CHARS:
+            break
+        del memory[cat][key]
+        print(f"[Memory] 🗑️  Trimmed {cat}/{key}")
+    return memory
+
+
 def save_memory(memory: dict) -> None:
     if not isinstance(memory, dict):
         return
+    memory = _trim_to_limit(memory)
     MEMORY_PATH.parent.mkdir(parents=True, exist_ok=True)
     with _lock:
         MEMORY_PATH.write_text(
@@ -287,5 +313,4 @@ def forget(key: str, category: str = "notes") -> str:
         return f"Forgotten: {category}/{key}"
     return f"Not found: {category}/{key}"
 
-# Alias — eski import'larla uyumluluk için
 forget_memory = forget
