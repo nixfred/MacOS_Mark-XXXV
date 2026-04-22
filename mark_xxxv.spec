@@ -1,5 +1,17 @@
 # -*- mode: python ; coding: utf-8 -*-
 # PyInstaller spec for MARK XXXV macOS
+#
+# BUILD PYTHON: 3.11.9 (python-build-standalone).
+# DO NOT upgrade to 3.11.11+ — those ship Tcl/Tk 9.0, which crashes in
+# Tk_AllocColorFromObj on aqua under the animated-canvas redraw loop (v0.9.2
+# DiagnosticReports 074354). 3.11.9 ships Tcl/Tk 8.6.12 which is stable.
+# The repo's .python-version pins this; uv respects it.
+# To build:
+#   uv venv --python 3.11.9 .venv-tk86
+#   uv pip install --python .venv-tk86/bin/python -r requirements.txt pyinstaller
+#   PBS=/Users/pi/.local/share/uv/python/cpython-3.11.9-macos-aarch64-none
+#   TCL_LIBRARY=$PBS/lib/tcl8.6 TK_LIBRARY=$PBS/lib/tk8.6 \
+#     .venv-tk86/bin/pyinstaller mark_xxxv.spec
 
 import os
 import sys
@@ -116,8 +128,8 @@ app = BUNDLE(
     info_plist={
         'CFBundleName': 'MARK XXXV',
         'CFBundleDisplayName': 'MARK XXXV',
-        'CFBundleVersion': '0.9.2',
-        'CFBundleShortVersionString': '0.9.2',
+        'CFBundleVersion': '0.9.3',
+        'CFBundleShortVersionString': '0.9.3',
         'NSMicrophoneUsageDescription': 'MARK XXXV needs microphone access for voice commands.',
         'NSCameraUsageDescription': 'MARK XXXV needs camera access for visual analysis.',
         'NSAppleEventsUsageDescription': 'MARK XXXV uses AppleScript to control system settings.',
